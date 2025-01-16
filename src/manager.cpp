@@ -13,50 +13,42 @@ bool store_empty = false;
 void handle_fire_signal(int signo) {
     std::cout << "Manager: Evacuation triggered!" << std::endl;
 
-    // TODO: Zachowanie w trakcie ewakuacji
     bool clients_evacuated = false;
     while (!clients_evacuated) {
-        int total_clients = 0;
+        clients_evacuated = true;
+        sleep(1);
+
         sem_lock(semaphore);
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
+        for (int i = 0; i < MAX_CLIENTS; i++) {
             if (state->clients[i] != -1) {
+                clients_evacuated = false;
                 break;
             }
-            clients_evacuated = true;
+        }
+        sem_unlock(semaphore);
+    }
+
+    bool cashiers_evacuated = false;
+    while (!cashiers_evacuated) {
+        cashiers_evacuated = true;
+        sleep(1);
+
+        sem_lock(semaphore);
+        for (int i = 0; i < MAX_CHECKOUTS; i++) {
+            if (state->cashiers[i] != -1) {
+                cashiers_evacuated = false;
+                std::cout << i << "kasjer" << std::endl;
+                break;
+            }
         }
         sem_unlock(semaphore);
     }
 
     store_empty = true;
-    std::cout << "Manager: All clients have left. Shutting down store." << std::endl;
+    std::cout << "Manager: All clients and cashiers have left. Shutting down store." << std::endl;
 }
 
-void handle_child_signal(int signo) {
-    // Weryfikacja zamknięcia kasjera
-    int status;
-    pid_t pid = waitpid(-1, &status, WNOHANG);
-    if (pid > 0) {
-        sem_lock(semaphore);
-
-        for (int i = 0; i < MAX_CHECKOUTS; i++) {
-            int cashier_pid = state->cashiers[i];
-            if (pid == cashier_pid) {
-
-                state->checkout_statuses[i] = CLOSED;
-                for (int j = 0; j < MAX_QUEUE; ++j) {
-                    state->queues[i][j] = -1;
-                }
-                state->cashiers[i] = -1;
-
-                std::cout << "\nManager: Checkout " << i + 1 << " closed by cashier (PID: " << pid << ")." << std::endl;
-                break;
-            }
-        }
-
-        sem_unlock(semaphore);
-    }
-}
-
+// Funkcje pomocnicze
 void open_checkout(int checkout_number) {
     pid_t pid = fork();
     if (pid == 0) {
@@ -89,11 +81,11 @@ void close_checkout(int checkout_number) {
 
 int main() {
     signal(SIGUSR1, handle_fire_signal);
-    signal(SIGCHLD, handle_child_signal);
 
     // Inicjalizacja pamięci współdzielonej i semaforów
     initialize_shared_key_file(SHARED_KEY_FILE);
     key_t key = ftok(SHARED_KEY_FILE, 65);
+
     state = initialize_shared_memory(key, shmid);
     semaphore = initialize_semaphore();
 
