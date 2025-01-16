@@ -5,8 +5,6 @@ sem_t* initialize_semaphore() {
     // Check if the semaphore exists
     sem_t* sem = sem_open(SEM_NAME, 0); // Open without O_CREAT to check existence
     if (sem != SEM_FAILED) {
-        printf("Semaphore exists. Deleting it...\n");
-
         // Close and unlink the semaphore
         if (sem_close(sem) == -1) {
             perror("sem_close");
@@ -16,22 +14,18 @@ sem_t* initialize_semaphore() {
             perror("sem_unlink");
             exit(EXIT_FAILURE);
         }
-
-        printf("Semaphore deleted successfully.\n");
     } else if (errno != ENOENT) {
         perror("sem_open (check)");
         exit(EXIT_FAILURE);
     }
 
     // Create the semaphore
-    printf("Creating semaphore...\n");
     sem = sem_open(SEM_NAME, O_CREAT, 0644, 1);
     if (sem == SEM_FAILED) {
         perror("sem_open (create)");
         exit(EXIT_FAILURE);
     }
 
-    printf("Semaphore created successfully.\n");
     return sem;
 }
 
@@ -87,6 +81,7 @@ SharedState* initialize_shared_memory(key_t key, int& shmid) {
     // Inicjalizacja stanu początkowego
     memset(state->checkout_statuses, CLOSED, sizeof(state->checkout_statuses));
     memset(state->cashiers, -1, sizeof(state->cashiers));
+    memset(state->clients, -1, sizeof(state->clients));
     state->manager = getpid();
 
     // Inicjalizacja kolejek kas
@@ -95,13 +90,24 @@ SharedState* initialize_shared_memory(key_t key, int& shmid) {
             state->queues[i][j] = -1; // Puste miejsce w kolejce
         }
     }
-
-    // Inicjalizacja listy klientów
-    for (int i = 0; i < MAX_CLIENTS; ++i) {
-        state->clients[i] = -1; // Brak klientów w sklepie
-    }
     
     state->evacuation = false;
+
+    return state;
+}
+
+SharedState* get_shared_memory() {
+    key_t key = ftok(SHARED_KEY_FILE, 65);
+    if (key == -1) {
+        return nullptr;
+    }
+
+    int shmid = shmget(key, sizeof(SharedState), 0666);
+    if (shmid == -1) {
+        return nullptr;
+    }
+
+    SharedState *state = (SharedState*)shmat(shmid, nullptr, 0);
 
     return state;
 }
