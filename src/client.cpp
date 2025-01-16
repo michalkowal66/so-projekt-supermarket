@@ -10,6 +10,9 @@ sem_t* semaphore = nullptr;
 SharedState* state = nullptr;
 pid_t client_pid;
 
+int fifo_fd = -1;
+char fifo_name[32];
+
 // Obsługa sygnału od strażaka
 void handle_fire_signal(int signo) {
     sem_lock(semaphore);
@@ -24,17 +27,26 @@ void handle_fire_signal(int signo) {
 
     sem_unlock(semaphore);
 
+    if (fifo_fd != -1) {
+        close(fifo_fd);
+        unlink(fifo_name);
+    }
+
     std::cout << "Client " << client_pid << ": Evacuating supermarket!" << std::endl;
     exit(0);
 }
 
 int main() {
     client_pid = getpid();
+    sprintf(fifo_name, "/tmp/client_%d", client_pid);
 
     // Inicjalizacja
-    key_t key = ftok(SHARED_KEY_FILE, 65);
-    int shmid = shmget(key, sizeof(SharedState), 0666);
-    state = (SharedState*)shmat(shmid, nullptr, 0);
+    state = get_shared_memory();
+    if (state == nullptr) {
+        std::cerr << "The store is unavailable." << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
     semaphore = sem_open(SEM_NAME, 0);
 
     signal(SIGUSR1, handle_fire_signal);
@@ -105,7 +117,7 @@ int main() {
                 if (state->queues[selected_queue][j] == -1) {
                     state->queues[selected_queue][j] = client_pid;
                     queued = true;
-                    std::cout << "Client " << client_pid << ": Joined queue " << selected_queue << "." << std::endl;
+                    std::cout << "Client " << client_pid << ": Joined queue " << selected_queue + 1 << "." << std::endl;
                     break;
                 }
             }
@@ -135,8 +147,6 @@ int main() {
     }
 
     // Utwórz FIFO do komunikacji z kasjerem
-    char fifo_name[32];
-    sprintf(fifo_name, "/tmp/client_%d", client_pid);
     mkfifo(fifo_name, 0666);
 
     // Czekaj na wiadomość od kasjera
