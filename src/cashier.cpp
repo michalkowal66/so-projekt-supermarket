@@ -13,6 +13,8 @@ void handle_fire_signal(int signo) {
     for (int i = 0; i < MAX_QUEUE; i++) 
         state->queues[checkout_number][i] = -1;
 
+    state->cashiers[checkout_number] = -1;
+
     sem_unlock(semaphore);
 
     std::cout << "Cashier " << checkout_number + 1 << ": Evacuating." << std::endl;
@@ -38,9 +40,12 @@ int main(int argc, char* argv[]) {
     cashier_pid = getpid();
     checkout_number = std::stoi(argv[1]);
 
-    key_t key = ftok(SHARED_KEY_FILE, 65);
-    int shmid = shmget(key, sizeof(SharedState), 0666);
-    state = (SharedState*)shmat(shmid, nullptr, 0);
+    state = get_shared_memory();
+    if (state == nullptr) {
+        std::cerr << "The store is unavailable." << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    
     semaphore = sem_open(SEM_NAME, 0);
 
     signal(SIGUSR1, handle_fire_signal);
@@ -68,7 +73,6 @@ int main(int argc, char* argv[]) {
 
         if (client_pid != -1) {
             sleep(8); // Symulacja obsługi
-            std::cout << "\nCashier " << checkout_number + 1 << ": Served client " << client_pid << "." << std::endl;
 
             // Powiadomienie klienta o zakończeniu obsługi
             char client_fifo[32];
@@ -85,8 +89,10 @@ int main(int argc, char* argv[]) {
                 state->queues[checkout_number][j] = state->queues[checkout_number][j + 1];
             }
             state->queues[checkout_number][MAX_QUEUE - 1] = -1;
+            
             sem_unlock(semaphore);
 
+            std::cout << "\nCashier " << checkout_number + 1 << ": Served client " << client_pid << "." << std::endl;
         } else {
             // Brak klientów w kolejce
             sleep(1);
