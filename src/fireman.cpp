@@ -1,9 +1,13 @@
 #include "shared.h"
 
 int main() {
-    key_t key = ftok(SHARED_KEY_FILE, 65);
-    int shmid = shmget(key, sizeof(SharedState), 0666);
-    SharedState* state = (SharedState*)shmat(shmid, nullptr, 0);
+    srand(time(nullptr) ^ getpid());
+
+    SharedState* state = get_shared_memory();
+    if (state == nullptr) {
+        std::cerr << "The store is unavailable." << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
     sem_t* semaphore = sem_open(SEM_NAME, 0);
 
@@ -11,7 +15,7 @@ int main() {
         sleep(10); // Okresowe sprawdzanie
         std::cout << "\nFireman: Periodic inspection, checking for fire." << std::endl;
         if (rand() % 100 > 80) { // Losowa szansa na pojawienie się pożaru w momencie sprawdzenia
-            std::cout << "Fireman: Fire detected, alarming store users." << std::endl;
+            std::cout << "Fireman: Fire detected, alarming supermarket users." << std::endl;
             sem_lock(semaphore);
 
             state->evacuation = true;
@@ -29,8 +33,10 @@ int main() {
             
             sem_unlock(semaphore);
 
+            std::cout << "Fireman: Supermarket users alarmed. Store is being evacuated." << std::endl;
             break;
         }
+        std::cout << "Fireman: No fire detected." << std::endl;
     }
 
     if (shmdt(state) == -1) {
