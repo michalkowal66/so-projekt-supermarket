@@ -82,12 +82,16 @@ void close_checkout(int checkout_number) {
 int main() {
     signal(SIGUSR1, handle_fire_signal);
 
+    std::cout << "Manager: Preparing the store to open." << std::endl;
+
     // Inicjalizacja pamięci współdzielonej i semaforów
     initialize_shared_key_file(SHARED_KEY_FILE);
     key_t key = ftok(SHARED_KEY_FILE, 65);
 
     state = initialize_shared_memory(key, shmid);
     semaphore = initialize_semaphore();
+
+    std::cout << "Manager: Opening the store." << std::endl;
 
     // Startowe otwarcie minimalnej liczby kas
     for (int i = 0; i < MIN_CHECKOUTS; i++) {
