@@ -58,6 +58,8 @@ int main(int argc, char* argv[]) {
 
     sem_unlock(semaphore);
 
+    std::cout << "Cashier (" << cashier_pid << "): Opened checkout " << checkout_number + 1 << std::endl;
+
     while (true) {
         sem_lock(semaphore);
 
