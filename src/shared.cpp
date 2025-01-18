@@ -2,10 +2,9 @@
 
 // Inicjalizacja semafora
 sem_t* initialize_semaphore() {
-    // Check if the semaphore exists
-    sem_t* sem = sem_open(SEM_NAME, 0); // Open without O_CREAT to check existence
+    // Sprawdź, czy semafor istnieje i usuń go, jeśli tak
+    sem_t* sem = sem_open(SEM_NAME, 0); // Otwórz bez O_CREAT by sprawdzić istnienie semafora
     if (sem != SEM_FAILED) {
-        // Close and unlink the semaphore
         if (sem_close(sem) == -1) {
             perror("sem_close");
             exit(EXIT_FAILURE);
@@ -19,7 +18,7 @@ sem_t* initialize_semaphore() {
         exit(EXIT_FAILURE);
     }
 
-    // Create the semaphore
+    // Utwórz semafor
     sem = sem_open(SEM_NAME, O_CREAT, 0644, 1);
     if (sem == SEM_FAILED) {
         perror("sem_open (create)");
@@ -54,6 +53,7 @@ void sem_unlock(sem_t* semaphore) {
     }
 }
 
+// Inicjalizacja pliku klucza dzielonego
 int initialize_shared_key_file(const char* path) {
     int fd = open(path, O_CREAT | O_RDWR, 0666);
     if (fd == -1) {
@@ -96,6 +96,7 @@ SharedState* initialize_shared_memory(key_t key, int& shmid) {
     return state;
 }
 
+// Uzyskanie dostępu do pamięci dzielonej
 SharedState* get_shared_memory() {
     key_t key = ftok(SHARED_KEY_FILE, 65);
     if (key == -1) {
