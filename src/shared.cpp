@@ -122,3 +122,17 @@ void cleanup_shared_memory(int shmid, SharedState* state) {
         perror("shmctl");
     }
 }
+
+// Funkcje pomocnicze
+const char* checkout_status_to_string(CheckoutStatus status) {
+    switch (status) {
+        case 0:
+            return "CLOSED";
+        case 1:
+            return "CLOSING";
+        case 2:
+            return "OPEN";
+        default:
+            return "UNKNOWN";
+    }
+}
