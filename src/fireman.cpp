@@ -4,13 +4,13 @@ int fire_chance = 20;
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
-        std::cout << "Fireman: Fire chance not provided, using default value: " << fire_chance << std::endl;
+        std::cout << "Fireman: Fire chance not provided, using default value: " << fire_chance << std::endl << std::endl;
     }
     else {
         try {
             fire_chance = std::stoi(argv[1]);
         } catch (const std::exception& e) {
-            std::cout << "Fireman: Fire chance parsing error, using default value: " << fire_chance << std::endl;
+            std::cout << "Fireman: Fire chance parsing error, using default value: " << fire_chance << std::endl << std::endl;
         }
     }
 
@@ -25,8 +25,8 @@ int main(int argc, char* argv[]) {
     sem_t* semaphore = sem_open(SEM_NAME, 0);
 
     while (true) {
-        sleep(10); // Okresowe sprawdzanie
-        std::cout << "\nFireman: Periodic inspection, checking for fire." << std::endl;
+        // Okresowe sprawdzanie
+        std::cout << "Fireman: Periodic inspection, checking for fire." << std::endl;
         if (rand() % 100 < fire_chance) { // Losowa szansa na pojawienie się pożaru w momencie sprawdzenia
             std::cout << "Fireman: Fire detected, alarming supermarket users." << std::endl;
             sem_lock(semaphore);
@@ -49,7 +49,8 @@ int main(int argc, char* argv[]) {
             std::cout << "Fireman: Supermarket users alarmed. Store is being evacuated." << std::endl;
             break;
         }
-        std::cout << "Fireman: No fire detected." << std::endl;
+        std::cout << "Fireman: No fire detected." << std::endl << std::endl;
+        sleep(10);
     }
 
     if (shmdt(state) == -1) {
