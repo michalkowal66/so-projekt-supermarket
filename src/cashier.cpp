@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
     state = get_shared_memory();
     if (state == nullptr) {
         std::cerr << "The store is unavailable." << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     
     semaphore = sem_open(SEM_NAME, 0);
@@ -111,8 +111,11 @@ int main(int argc, char* argv[]) {
                 }
             }
             if (queue_empty) {
-                // state->checkout_statuses[checkout_number] = CLOSED;
+                state->checkout_statuses[checkout_number] = CLOSED;
+                state->cashiers[checkout_number] = -1;
                 sem_unlock(semaphore);
+
+                std::cout << "Cashier (" << cashier_pid << "): Closed checkout " << checkout_number + 1 << std::endl;
                 break;
             }
         }
