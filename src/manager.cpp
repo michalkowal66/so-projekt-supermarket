@@ -120,7 +120,7 @@ int main() {
         std::cout << "  Clients in supermarket: " << total_clients << std::endl;
         for (int i = 0; i < MAX_CHECKOUTS; i++) {
             CheckoutStatus curr_checkout_status = (CheckoutStatus)(state->checkout_statuses[i]);
-            std::cout << "    Checkout " << i + 1 << ": " << curr_checkout_status << std::endl;
+            std::cout << "    Checkout " << i + 1 << ": " << checkout_status_to_string(curr_checkout_status) << std::endl;
             if (curr_checkout_status != CLOSED) {
                 if (curr_checkout_status == OPEN) open_checkouts++;
                 int queue_size = 0;
@@ -189,7 +189,7 @@ int main() {
     std::cout << "  Clients in supermarket: " << total_clients << std::endl;
     for (int i = 0; i < MAX_CHECKOUTS; i++) {
         CheckoutStatus curr_checkout_status = (CheckoutStatus)(state->checkout_statuses[i]);
-        std::cout << "    Checkout " << i + 1 << ": " << curr_checkout_status << std::endl;
+        std::cout << "    Checkout " << i + 1 << ": " << checkout_status_to_string(curr_checkout_status) << std::endl;
         if (curr_checkout_status != CLOSED) {
             if (curr_checkout_status == OPEN) open_checkouts++;
             int queue_size = 0;
