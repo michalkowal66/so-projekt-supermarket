@@ -17,7 +17,7 @@ void handle_fire_signal(int signo) {
 
     sem_unlock(semaphore);
 
-    std::cout << "Cashier " << checkout_number + 1 << ": Evacuating." << std::endl;
+    std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Evacuating." << std::endl;
     exit(0);
 }
 
@@ -28,7 +28,7 @@ void handle_closing_signal(int signo) {
 
     sem_unlock(semaphore);
 
-    std::cout << "Cashier " << checkout_number + 1 << ": Closing after serving remaining clients." << std::endl;
+    std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Closing after serving remaining clients." << std::endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
 
     sem_unlock(semaphore);
 
-    std::cout << "Cashier (" << cashier_pid << "): Opened checkout " << checkout_number + 1 << std::endl;
+    std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Opened checkout " << checkout_number + 1 << std::endl;
 
     while (true) {
         sem_lock(semaphore);
@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
             
             sem_unlock(semaphore);
 
-            std::cout << "\nCashier " << checkout_number + 1 << ": Served client " << client_pid << "." << std::endl;
+            std::cout << "\nCashier " << checkout_number + 1 << " (" << cashier_pid << "): Served client " << client_pid << "." << std::endl;
         } else {
             // Brak klientów w kolejce
             sleep(1);
@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
                 state->cashiers[checkout_number] = -1;
                 sem_unlock(semaphore);
 
-                std::cout << "Cashier (" << cashier_pid << "): Closed checkout " << checkout_number + 1 << std::endl;
+                std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Closed checkout " << checkout_number + 1 << std::endl;
                 break;
             }
         }
