@@ -1,12 +1,25 @@
 #include "shared.h"
 
-int main() {
+int fire_chance = 20;
+
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cout << "Fireman: Fire chance not provided, using default value: " << fire_chance << std::endl;
+    }
+    else {
+        try {
+            fire_chance = std::stoi(argv[1]);
+        } catch (const std::exception& e) {
+            std::cout << "Fireman: Fire chance parsing error, using default value: " << fire_chance << std::endl;
+        }
+    }
+
     srand(time(nullptr) ^ getpid());
 
     SharedState* state = get_shared_memory();
     if (state == nullptr) {
         std::cerr << "The store is unavailable." << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     sem_t* semaphore = sem_open(SEM_NAME, 0);
@@ -14,7 +27,7 @@ int main() {
     while (true) {
         sleep(10); // Okresowe sprawdzanie
         std::cout << "\nFireman: Periodic inspection, checking for fire." << std::endl;
-        if (rand() % 100 > 80) { // Losowa szansa na pojawienie się pożaru w momencie sprawdzenia
+        if (rand() % 100 < fire_chance) { // Losowa szansa na pojawienie się pożaru w momencie sprawdzenia
             std::cout << "Fireman: Fire detected, alarming supermarket users." << std::endl;
             sem_lock(semaphore);
 
