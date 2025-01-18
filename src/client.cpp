@@ -44,7 +44,7 @@ int main() {
     state = get_shared_memory();
     if (state == nullptr) {
         std::cerr << "The store is unavailable." << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     semaphore = sem_open(SEM_NAME, 0);
@@ -58,7 +58,7 @@ int main() {
     sem_unlock(semaphore);
     if (evacuation) {
         std::cerr << "Client " << client_pid << ": Store is being evacuated, cannot enter." << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     sem_lock(semaphore);
@@ -74,7 +74,7 @@ int main() {
 
     if (!added) {
         std::cerr << "Client " << client_pid << ": Could not enter the supermarket." << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     std::cout << "Client " << client_pid << ": Entered the supermarket." << std::endl;
@@ -143,7 +143,7 @@ int main() {
             }
         }
         sem_unlock(semaphore);
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     // Utwórz FIFO do komunikacji z kasjerem
