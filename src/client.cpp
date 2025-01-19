@@ -36,6 +36,10 @@ void handle_fire_signal(int signo) {
     exit(0);
 }
 
+void handle_sigint_signal(int signo) {
+    std::cout << "Client " << client_pid << " received SIGINT - ignoring signal." << std::endl;
+}
+
 int main() {
     client_pid = getpid();
     sprintf(fifo_name, "/tmp/client_%d", client_pid);
@@ -50,6 +54,8 @@ int main() {
     semaphore = sem_open(SEM_NAME, 0);
 
     signal(SIGUSR1, handle_fire_signal);
+    signal(SIGINT, handle_sigint_signal);
+
     srand(time(nullptr) ^ client_pid);
 
     // Dodanie klienta do listy klientów w sklepie
