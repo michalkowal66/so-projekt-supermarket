@@ -11,6 +11,7 @@ pid_t client_pid;
 
 int fifo_fd = -1;
 char fifo_name[32];
+int fifo_linked = -1;
 
 // Obsługa sygnału od strażaka
 void handle_fire_signal(int signo) {
@@ -26,10 +27,10 @@ void handle_fire_signal(int signo) {
 
     sem_unlock(semaphore);
 
-    if (fifo_fd != -1) {
+    if (fifo_fd != -1)
         close(fifo_fd);
+    if (fifo_linked != -1)
         unlink(fifo_name);
-    }
 
     std::cout << "Client " << client_pid << ": Evacuating supermarket!" << std::endl;
     exit(0);
@@ -82,6 +83,9 @@ int main() {
     }
 
     std::cout << "Client " << client_pid << ": Entered the supermarket." << std::endl;
+    
+    // Utwórz FIFO do komunikacji z kasjerem
+    fifo_linked = mkfifo(fifo_name, 0666);
 
     // Symulacja zakupów
     int shopping_time = rand() % 8 + 3; // Zakupy trwają 3-10 sekund
@@ -148,11 +152,12 @@ int main() {
         }
 
         sem_unlock(semaphore);
+
+        if (fifo_linked != -1)
+            unlink(fifo_name);
+
         return EXIT_FAILURE;
     }
-
-    // Utwórz FIFO do komunikacji z kasjerem
-    mkfifo(fifo_name, 0666);
 
     // Czekaj na wiadomość od kasjera
     int fifo_fd = open(fifo_name, O_RDONLY);
@@ -168,9 +173,6 @@ int main() {
         }
     }
 
-    close(fifo_fd);
-    unlink(fifo_name);
-
     // Usuń klienta z listy klientów w sklepie
     sem_lock(semaphore);
 
@@ -182,6 +184,9 @@ int main() {
     }
 
     sem_unlock(semaphore);
+
+    close(fifo_fd);
+    unlink(fifo_name);
 
     return 0;
 }
