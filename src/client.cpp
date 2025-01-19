@@ -1,5 +1,4 @@
 #include "shared.h"
-#include <queue>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -54,14 +53,18 @@ int main() {
 
     // Dodanie klienta do listy klientów w sklepie
     sem_lock(semaphore);
+
     bool evacuation = state->evacuation;
+
     sem_unlock(semaphore);
+
     if (evacuation) {
         std::cerr << "Client " << client_pid << ": Store is being evacuated, cannot enter." << std::endl;
         return EXIT_FAILURE;
     }
 
     sem_lock(semaphore);
+
     bool added = false;
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         if (state->clients[i] == -1) {
@@ -70,6 +73,7 @@ int main() {
             break;
         }
     }
+
     sem_unlock(semaphore);
 
     if (!added) {
@@ -125,9 +129,7 @@ int main() {
 
         sem_unlock(semaphore);
 
-        if (queued) {
-            break;
-        }
+        if (queued) break;
 
         std::cout << "Client " << client_pid << ": All queues are full. Retrying in a moment." << std::endl;
         sleep(rand() % 3 + 1); // Odczekaj losowy czas przed kolejną próbą
@@ -135,13 +137,16 @@ int main() {
 
     if (!queued) {
         std::cout << "Client " << client_pid << ": Could not join any queue. Leaving without purchases." << std::endl;
+        
         sem_lock(semaphore);
+
         for (int i = 0; i < MAX_CLIENTS; ++i) {
             if (state->clients[i] == client_pid) {
                 state->clients[i] = -1;
                 break;
             }
         }
+
         sem_unlock(semaphore);
         return EXIT_FAILURE;
     }
@@ -168,12 +173,14 @@ int main() {
 
     // Usuń klienta z listy klientów w sklepie
     sem_lock(semaphore);
+
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         if (state->clients[i] == client_pid) {
             state->clients[i] = -1;
             break;
         }
     }
+
     sem_unlock(semaphore);
 
     return 0;
