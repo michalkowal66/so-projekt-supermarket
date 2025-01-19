@@ -19,7 +19,7 @@ sem_t* initialize_semaphore() {
     }
 
     // Utwórz semafor
-    sem = sem_open(SEM_NAME, O_CREAT, 0644, 1);
+    sem = sem_open(SEM_NAME, O_CREAT, 0666, 1);
     if (sem == SEM_FAILED) {
         perror("sem_open (create)");
         exit(EXIT_FAILURE);
