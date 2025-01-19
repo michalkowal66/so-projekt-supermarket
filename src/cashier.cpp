@@ -50,13 +50,6 @@ int main(int argc, char* argv[]) {
 
     signal(SIGUSR1, handle_fire_signal);
     signal(SIGUSR2, handle_closing_signal);
-    
-    sem_lock(semaphore);
-
-    state->cashiers[checkout_number] = cashier_pid;
-    state->checkout_statuses[checkout_number] = OPEN;
-
-    sem_unlock(semaphore);
 
     std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Opened checkout " << checkout_number + 1 << std::endl;
 

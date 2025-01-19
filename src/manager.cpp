@@ -50,6 +50,8 @@ void handle_fire_signal(int signo) {
 
 // Funkcje pomocnicze
 void open_checkout(int checkout_number) {
+    sem_lock(semaphore);
+    
     pid_t pid = fork();
     if (pid == 0) {
         // Proces kasjera
@@ -59,10 +61,14 @@ void open_checkout(int checkout_number) {
         perror("execl");
         exit(EXIT_FAILURE);
     } else if (pid > 0) {
+        state->cashiers[checkout_number] = pid;
+        state->checkout_statuses[checkout_number] = OPEN;
         std::cout << "\nManager: Requested checkout #" << checkout_number + 1 << " to be opened (PID: " << pid << ")." << std::endl;
     } else {
         perror("fork");
     }
+
+    sem_unlock(semaphore);
 }
 
 void close_checkout(int checkout_number) {
