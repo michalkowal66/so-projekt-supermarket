@@ -76,13 +76,13 @@ void close_checkout(int checkout_number) {
 
     CheckoutStatus checkout_status = state->checkout_statuses[checkout_number];
     pid_t pid = state->cashiers[checkout_number];
-
-    sem_unlock(semaphore);
     
     if (checkout_status == OPEN) {
         kill(pid, SIGUSR2); // Sygnał zamknięcia kasy
         std::cout << "\nManager: Requested checkout #" << checkout_number + 1 << " to be closed (PID: " << pid << ")." << std::endl;
     }    
+
+    sem_unlock(semaphore);
 }
 
 int main() {
