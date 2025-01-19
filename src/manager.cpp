@@ -19,12 +19,14 @@ void handle_fire_signal(int signo) {
         sleep(1);
 
         sem_lock(semaphore);
+
         for (int i = 0; i < MAX_CLIENTS; i++) {
             if (state->clients[i] != -1) {
                 clients_evacuated = false;
                 break;
             }
         }
+
         sem_unlock(semaphore);
     }
 
@@ -34,13 +36,14 @@ void handle_fire_signal(int signo) {
         sleep(1);
 
         sem_lock(semaphore);
+
         for (int i = 0; i < MAX_CHECKOUTS; i++) {
             if (state->cashiers[i] != -1) {
                 cashiers_evacuated = false;
-                std::cout << i << "kasjer" << std::endl;
                 break;
             }
         }
+
         sem_unlock(semaphore);
     }
 
@@ -108,6 +111,7 @@ int main() {
         sleep(5); // Okresowa kontrola stanu sklepu
 
         sem_lock(semaphore);
+
         if (state->evacuation) {
             sem_unlock(semaphore);
             break;
@@ -138,18 +142,22 @@ int main() {
             }
         }
 
+        bool took_action = false;
+
         // Logika otwierania kas
         if (open_checkouts < std::max((double)MIN_CHECKOUTS, ceil(total_clients * 1.0 / K_CLIENTS))) {
             for (int i = 0; i < MAX_CHECKOUTS; ++i) {
                 if (state->checkout_statuses[i] == CLOSED) {
                     sem_unlock(semaphore);
+
                     open_checkout(i);
+                    took_action = true;
                     break;
                 }
             }
         }
         // Logika zamykania kas
-        else if (total_clients < K_CLIENTS * (open_checkouts - 1) && open_checkouts > 2) {
+        else if (total_clients < K_CLIENTS * (open_checkouts - 1) && open_checkouts > MIN_CHECKOUTS) {
             int min_clients = MAX_QUEUE + 1;
             int checkout_to_close = -1;
 
@@ -171,14 +179,22 @@ int main() {
 
             if (checkout_to_close != -1) {
                 sem_unlock(semaphore);
+
                 close_checkout(checkout_to_close);
+                took_action = true;
             }
         }
 
+        if (!took_action) {  
         sem_unlock(semaphore);
+        }
     }
 
-    while (!store_empty) sleep(1);
+    while (!store_empty) {
+        sleep(1);
+    }
+
+    
 
     // TODO: Podsumowanie ewakuacji
     sem_lock(semaphore);
