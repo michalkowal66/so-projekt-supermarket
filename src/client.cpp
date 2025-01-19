@@ -1,4 +1,5 @@
 #include "shared.h"
+#include "ccol.h"
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -32,12 +33,12 @@ void handle_fire_signal(int signo) {
     if (fifo_linked != -1)
         unlink(fifo_name);
 
-    std::cout << "Client " << client_pid << ": Evacuating supermarket!" << std::endl;
+    std::cout << info_important << "Client " << client_pid << ": Evacuating supermarket!" << reset_color << std::endl;
     exit(0);
 }
 
 void handle_sigint_signal(int signo) {
-    std::cout << "Client " << client_pid << " received SIGINT - ignoring signal." << std::endl;
+    std::cout << warning << "Client " << client_pid << " received SIGINT - ignoring signal." << reset_color << std::endl;
 }
 
 int main() {
@@ -47,7 +48,7 @@ int main() {
     // Inicjalizacja
     state = get_shared_memory();
     if (state == nullptr) {
-        std::cerr << "The store is unavailable." << std::endl;
+        std::cerr << fatal << "Client " << client_pid << ": The store is unavailable." << reset_color << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -66,7 +67,7 @@ int main() {
     sem_unlock(semaphore);
 
     if (evacuation) {
-        std::cerr << "Client " << client_pid << ": Store is being evacuated, cannot enter." << std::endl;
+        std::cerr << error << "Client " << client_pid << ": Store is being evacuated, cannot enter." << reset_color << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -84,11 +85,11 @@ int main() {
     sem_unlock(semaphore);
 
     if (!added) {
-        std::cerr << "Client " << client_pid << ": Could not enter the supermarket." << std::endl;
+        std::cerr << error << "Client " << client_pid << ": Could not enter the supermarket." << reset_color << std::endl;
         return EXIT_FAILURE;
     }
 
-    std::cout << "Client " << client_pid << ": Entered the supermarket." << std::endl;
+    std::cout << success << "Client " << client_pid << ": Entered the supermarket." << reset_color << std::endl;
     
     // Utwórz FIFO do komunikacji z kasjerem
     fifo_linked = mkfifo(fifo_name, 0666);
@@ -96,7 +97,7 @@ int main() {
     // Symulacja zakupów
     int shopping_time = rand() % 8 + 3; // Zakupy trwają 3-10 sekund
     sleep(shopping_time);
-    std::cout << "Client " << client_pid << ": Finished shopping in " << shopping_time << " seconds." << std::endl;
+    std::cout << info << "Client " << client_pid << ": Finished shopping in " << shopping_time << " seconds." << reset_color << std::endl;
 
     // Próbuj ustawić się w kolejce
     int attempts = 2; // Liczba prób ustawienia się w kolejce
@@ -131,7 +132,7 @@ int main() {
                 if (state->queues[selected_queue][j] == -1) {
                     state->queues[selected_queue][j] = client_pid;
                     queued = true;
-                    std::cout << "Client " << client_pid << ": Joined queue " << selected_queue + 1 << "." << std::endl;
+                    std::cout << info << "Client " << client_pid << ": Joined queue " << selected_queue + 1 << "." << reset_color << std::endl;
                     break;
                 }
             }
@@ -141,12 +142,12 @@ int main() {
 
         if (queued) break;
 
-        std::cout << "Client " << client_pid << ": All queues are full. Retrying in a moment." << std::endl;
+        std::cout << warning << "Client " << client_pid << ": All queues are full. Retrying in a moment." << reset_color << std::endl;
         sleep(rand() % 3 + 1); // Odczekaj losowy czas przed kolejną próbą
     }
 
     if (!queued) {
-        std::cout << "Client " << client_pid << ": Could not join any queue. Leaving without purchases." << std::endl;
+        std::cout << warning << "Client " << client_pid << ": Could not join any queue. Leaving without purchases." << reset_color << std::endl;
         
         sem_lock(semaphore);
 
@@ -173,7 +174,7 @@ int main() {
         if (bytes_read > 0) {
             buffer[bytes_read] = '\0';
             if (strcmp(buffer, "DONE") == 0) {
-                std::cout << "Client " << client_pid << ": Finished checkout. Leaving supermarket." << std::endl;
+                std::cout << success_important << "Client " << client_pid << ": Finished checkout. Leaving supermarket." << reset_color << std::endl;
                 break;
             }
         }

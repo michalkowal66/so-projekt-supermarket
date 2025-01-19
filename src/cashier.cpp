@@ -1,4 +1,5 @@
 #include "shared.h"
+#include "ccol.h"
 
 pid_t cashier_pid;
 int checkout_number;
@@ -15,7 +16,7 @@ void handle_fire_signal(int signo) {
 
     state->cashiers[checkout_number] = -1;
 
-    std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Evacuating." << std::endl;
+    std::cout << info_important << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Evacuating." << reset_color << std::endl;
     
     sem_unlock(semaphore);
 
@@ -26,16 +27,16 @@ void handle_closing_signal(int signo) {
     sem_lock(semaphore);
 
     if (state->checkout_statuses[checkout_number] != CLOSING)
-    state->checkout_statuses[checkout_number] = CLOSING;
+        state->checkout_statuses[checkout_number] = CLOSING;
 
     sem_unlock(semaphore);
-
-    std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Closing after serving remaining clients." << std::endl;
+    
+    std::cout << info_alt << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Closing after serving remaining clients." << reset_color << std::endl;
 }
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
-        std::cerr << "Usage: cashier <checkout_number>" << std::endl;
+        std::cerr << error << "Usage: cashier <checkout_number>" << reset_color << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -44,7 +45,7 @@ int main(int argc, char* argv[]) {
 
     state = get_shared_memory();
     if (state == nullptr) {
-        std::cerr << "The store is unavailable." << std::endl;
+        std::cerr << fatal << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): The store is unavailable." << reset_color << std::endl;
         return EXIT_FAILURE;
     }
     
@@ -53,7 +54,7 @@ int main(int argc, char* argv[]) {
     signal(SIGUSR1, handle_fire_signal);
     signal(SIGUSR2, handle_closing_signal);
 
-    std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Opened checkout " << checkout_number + 1 << std::endl;
+    std::cout << success << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Opened checkout " << checkout_number + 1 << reset_color << std::endl;
 
     while (true) {
         sem_lock(semaphore);
@@ -88,8 +89,8 @@ int main(int argc, char* argv[]) {
                 state->queues[checkout_number][j] = state->queues[checkout_number][j + 1];
             }
             state->queues[checkout_number][MAX_QUEUE - 1] = -1;
-
-            std::cout << "\nCashier " << checkout_number + 1 << " (" << cashier_pid << "): Served client " << client_pid << "." << std::endl;
+            
+            std::cout << success << "\nCashier " << checkout_number + 1 << " (" << cashier_pid << "): Served client " << client_pid << "." << reset_color << std::endl;
             
             sem_unlock(semaphore);
         } else {
@@ -114,7 +115,7 @@ int main(int argc, char* argv[]) {
 
                 sem_unlock(semaphore);
 
-                std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Closed checkout " << checkout_number + 1 << std::endl;
+                std::cout << info_alt << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Closed checkout " << checkout_number + 1 << reset_color << std::endl;
                 break;
             }
         }

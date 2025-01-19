@@ -1,4 +1,5 @@
 #include "shared.h"
+#include "ccol.h"
 #include <sys/wait.h>
 #include <map>
 #include <algorithm>
@@ -12,7 +13,7 @@ bool shutting_down = false;
 
 // Obsługa sygnałów
 void handle_fire_signal(int signo) {
-    std::cout << "Manager: Evacuation triggered!" << std::endl;
+    std::cout << info_important << "Manager: Evacuation triggered!" << reset_color << std::endl;
 
     shutting_down = true;
 
@@ -51,7 +52,7 @@ void handle_fire_signal(int signo) {
     }
 
     store_empty = true;
-    std::cout << "Manager: All clients and cashiers have left. Shutting down store." << std::endl;
+    std::cout << info_important << "Manager: All clients and cashiers have left. Shutting down store." << reset_color << std::endl;
 }
 
 // Funkcje pomocnicze
@@ -69,7 +70,7 @@ void open_checkout(int checkout_number) {
     } else if (pid > 0) {
         state->cashiers[checkout_number] = pid;
         state->checkout_statuses[checkout_number] = OPEN;
-        std::cout << "\nManager: Requested checkout #" << checkout_number + 1 << " to be opened (PID: " << pid << ")." << std::endl;
+        std::cout << info_alt << "\nManager: Requested checkout #" << checkout_number + 1 << " to be opened (PID: " << pid << ")." << reset_color << std::endl;
     } else {
         perror("fork");
     }
@@ -82,10 +83,10 @@ void close_checkout(int checkout_number) {
 
     CheckoutStatus checkout_status = state->checkout_statuses[checkout_number];
     pid_t pid = state->cashiers[checkout_number];
-    
+
     if (checkout_status == OPEN) {
         kill(pid, SIGUSR2); // Sygnał zamknięcia kasy
-        std::cout << "\nManager: Requested checkout #" << checkout_number + 1 << " to be closed (PID: " << pid << ")." << std::endl;
+        std::cout << info_alt << "\nManager: Requested checkout #" << checkout_number + 1 << " to be closed (PID: " << pid << ")." << reset_color << std::endl;
     }    
 
     sem_unlock(semaphore);
@@ -97,7 +98,7 @@ void* wait_children(void *arg) {
         int status;
         pid_t pid = waitpid(-1, &status, WNOHANG); // Sprawdzaj bez blokowania
         if (pid > 0) {
-            std::cout << "Manager: Cashier process (" << pid << ") finished." << std::endl;
+            std::cout << info_alt << "Manager: Cashier process (" << pid << ") finished." << reset_color << std::endl;
         } else {
             sleep(1);
         }
@@ -108,7 +109,7 @@ void* wait_children(void *arg) {
         int status;
         pid_t pid = waitpid(-1, &status, 0); // Blokujące oczekiwanie
         if (pid > 0) {
-            std::cout << "Manager: Cashier process (" << pid << ") finished after shutting down decision." << std::endl;
+            std::cout << info_alt << "Manager: Cashier process (" << pid << ") finished after shutting down decision." << reset_color << std::endl;
         } else {
             break; // Brak więcej procesów potomnych
         }
@@ -120,7 +121,7 @@ void* wait_children(void *arg) {
 int main() {
     signal(SIGUSR1, handle_fire_signal);
 
-    std::cout << "Manager: Preparing the store to open." << std::endl;
+    std::cout << info << "Manager: Preparing the store to open." << reset_color << std::endl;
 
     // Inicjalizacja pamięci współdzielonej i semaforów
     initialize_shared_key_file(SHARED_KEY_FILE);
@@ -129,7 +130,7 @@ int main() {
     state = initialize_shared_memory(key, shmid);
     semaphore = initialize_semaphore();
 
-    std::cout << "Manager: Opening the store." << std::endl;
+    std::cout << success_important << "Manager: Opening the store." << reset_color << std::endl;
 
     // Wątek do oczyszczania procesów potomnych
     pthread_t wait_children_thread;
@@ -159,7 +160,7 @@ int main() {
         }
         int open_checkouts = 0;
 
-        std::cout << "\nManager: Periodic inspection" << std::endl;
+        std::cout << info << "\nManager: Periodic inspection" << std::endl;
         std::cout << "  Clients in supermarket: " << total_clients << std::endl;
         for (int i = 0; i < MAX_CHECKOUTS; i++) {
             CheckoutStatus curr_checkout_status = (CheckoutStatus)(state->checkout_statuses[i]);
@@ -174,6 +175,7 @@ int main() {
                 std::cout << "      Clients in queue: " << queue_size << std::endl;
             }
         }
+        std::cout << reset_color;
 
         bool took_action = false;
 
@@ -219,14 +221,14 @@ int main() {
         }
 
         if (!took_action) {  
-        sem_unlock(semaphore);
+            sem_unlock(semaphore);
         }
     }
 
     while (!store_empty) {
         sleep(1);
     }
-
+    
     // Dołączanie wątku odpowiedzialnego za czyszczenie
     pthread_join(wait_children_thread, NULL);
 
@@ -241,7 +243,7 @@ int main() {
     }
     int open_checkouts = 0;
 
-    std::cout << "\nManager: Before closing summary" << std::endl;
+    std::cout << warning << "\nManager: Before closing summary" << std::endl;
     std::cout << "  Clients in supermarket: " << total_clients << std::endl;
     for (int i = 0; i < MAX_CHECKOUTS; i++) {
         CheckoutStatus curr_checkout_status = (CheckoutStatus)(state->checkout_statuses[i]);
@@ -256,6 +258,7 @@ int main() {
             std::cout << "      Clients in queue: " << queue_size << std::endl;
         }
     }
+    std::cout << reset_color;
 
     sem_unlock(semaphore);
 

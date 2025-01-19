@@ -1,16 +1,17 @@
 #include "shared.h"
+#include "ccol.h"
 
 int fire_chance = 20;
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
-        std::cout << "Fireman: Fire chance not provided, using default value: " << fire_chance << std::endl << std::endl;
+        std::cout << warning << "Fireman: Fire chance not provided, using default value: " << fire_chance << reset_color << std::endl << std::endl;
     }
     else {
         try {
             fire_chance = std::stoi(argv[1]);
         } catch (const std::exception& e) {
-            std::cout << "Fireman: Fire chance parsing error, using default value: " << fire_chance << std::endl << std::endl;
+            std::cout << warning << "Fireman: Fire chance parsing error, using default value: " << fire_chance << reset_color << std::endl << std::endl;
         }
     }
 
@@ -18,7 +19,7 @@ int main(int argc, char* argv[]) {
 
     SharedState* state = get_shared_memory();
     if (state == nullptr) {
-        std::cerr << "The store is unavailable." << std::endl;
+        std::cerr << fatal << "Fireman: The store is unavailable." << reset_color << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -26,9 +27,9 @@ int main(int argc, char* argv[]) {
 
     while (true) {
         // Okresowe sprawdzanie
-        std::cout << "Fireman: Periodic inspection, checking for fire." << std::endl;
+        std::cout << info << "Fireman: Periodic inspection, checking for fire." << reset_color << std::endl;
         if (rand() % 100 < fire_chance) { // Losowa szansa na pojawienie się pożaru w momencie sprawdzenia
-            std::cout << "Fireman: Fire detected, alarming supermarket users." << std::endl;
+            std::cout << warning << "Fireman: Fire detected, alarming supermarket users." << reset_color << std::endl;
             sem_lock(semaphore);
 
             state->evacuation = true;
@@ -46,10 +47,10 @@ int main(int argc, char* argv[]) {
             
             sem_unlock(semaphore);
 
-            std::cout << "Fireman: Supermarket users alarmed. Store is being evacuated." << std::endl;
+            std::cout << success_important << "Fireman: Supermarket users alarmed. Store is being evacuated." << reset_color << std::endl;
             break;
         }
-        std::cout << "Fireman: No fire detected." << std::endl << std::endl;
+        std::cout << success << "Fireman: No fire detected." << reset_color << std::endl << std::endl;
         sleep(10);
     }
 
