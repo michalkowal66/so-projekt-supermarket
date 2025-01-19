@@ -8,10 +8,13 @@ sem_t* semaphore = nullptr;
 SharedState* state = nullptr;
 int shmid;
 bool store_empty = false;
+bool shutting_down = false;
 
 // Obsługa sygnałów
 void handle_fire_signal(int signo) {
     std::cout << "Manager: Evacuation triggered!" << std::endl;
+
+    shutting_down = true;
 
     bool clients_evacuated = false;
     while (!clients_evacuated) {
@@ -88,6 +91,32 @@ void close_checkout(int checkout_number) {
     sem_unlock(semaphore);
 }
 
+// Funkcja obsługująca oczyszczanie procesów potomnych
+void* wait_children(void *arg) {
+    while (!shutting_down) {
+        int status;
+        pid_t pid = waitpid(-1, &status, WNOHANG); // Sprawdzaj bez blokowania
+        if (pid > 0) {
+            std::cout << "Manager: Cashier process (" << pid << ") finished." << std::endl;
+        } else {
+            sleep(1);
+        }
+    }
+
+    // Po zatrzymaniu programu upewnij się, że wszystkie procesy są oczyszczone
+    while (true) {
+        int status;
+        pid_t pid = waitpid(-1, &status, 0); // Blokujące oczekiwanie
+        if (pid > 0) {
+            std::cout << "Manager: Cashier process (" << pid << ") finished after shutting down decision." << std::endl;
+        } else {
+            break; // Brak więcej procesów potomnych
+        }
+    }
+
+    return NULL;
+}
+
 int main() {
     signal(SIGUSR1, handle_fire_signal);
 
@@ -101,6 +130,10 @@ int main() {
     semaphore = initialize_semaphore();
 
     std::cout << "Manager: Opening the store." << std::endl;
+
+    // Wątek do oczyszczania procesów potomnych
+    pthread_t wait_children_thread;
+    pthread_create(&wait_children_thread, NULL, wait_children, NULL);
 
     // Startowe otwarcie minimalnej liczby kas
     for (int i = 0; i < MIN_CHECKOUTS; i++) {
@@ -194,7 +227,8 @@ int main() {
         sleep(1);
     }
 
-    
+    // Dołączanie wątku odpowiedzialnego za czyszczenie
+    pthread_join(wait_children_thread, NULL);
 
     // TODO: Podsumowanie ewakuacji
     sem_lock(semaphore);
