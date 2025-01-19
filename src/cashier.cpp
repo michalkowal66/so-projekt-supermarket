@@ -15,15 +15,17 @@ void handle_fire_signal(int signo) {
 
     state->cashiers[checkout_number] = -1;
 
+    std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Evacuating." << std::endl;
+    
     sem_unlock(semaphore);
 
-    std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Evacuating." << std::endl;
     exit(0);
 }
 
 void handle_closing_signal(int signo) {
     sem_lock(semaphore);
 
+    if (state->checkout_statuses[checkout_number] != CLOSING)
     state->checkout_statuses[checkout_number] = CLOSING;
 
     sem_unlock(semaphore);
@@ -64,6 +66,7 @@ int main(int argc, char* argv[]) {
 
         // Obsługa pierwszego klienta w kolejce
         int client_pid = state->queues[checkout_number][0];
+
         sem_unlock(semaphore);
 
         if (client_pid != -1) {
@@ -80,14 +83,15 @@ int main(int argc, char* argv[]) {
 
             // Przesunięcie kolejnych klientów w kolejce
             sem_lock(semaphore);
+
             for (int j = 0; j < MAX_QUEUE - 1; j++) {
                 state->queues[checkout_number][j] = state->queues[checkout_number][j + 1];
             }
             state->queues[checkout_number][MAX_QUEUE - 1] = -1;
-            
-            sem_unlock(semaphore);
 
             std::cout << "\nCashier " << checkout_number + 1 << " (" << cashier_pid << "): Served client " << client_pid << "." << std::endl;
+            
+            sem_unlock(semaphore);
         } else {
             // Brak klientów w kolejce
             sleep(1);
@@ -95,6 +99,7 @@ int main(int argc, char* argv[]) {
 
         // Sprawdzenie statusu kasy
         sem_lock(semaphore);
+
         if (state->checkout_statuses[checkout_number] == CLOSING) {
             bool queue_empty = true;
             for (int j = 0; j < MAX_QUEUE; ++j) {
@@ -106,6 +111,7 @@ int main(int argc, char* argv[]) {
             if (queue_empty) {
                 state->checkout_statuses[checkout_number] = CLOSED;
                 state->cashiers[checkout_number] = -1;
+
                 sem_unlock(semaphore);
 
                 std::cout << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Closed checkout " << checkout_number + 1 << std::endl;
