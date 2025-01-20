@@ -61,7 +61,30 @@ void handle_fire_signal(int signo) {
 
 // Obsługa sygnału SIGINT
 void handle_sigint_signal(int signo) {
-    std::cout << warning << "Client " << client_pid << " received SIGINT - ignoring signal." << reset_color << std::endl;
+    std::cout << warning << "Client " << client_pid << " received SIGINT. Ignoring signal. Use SIGUSR2 to kill." << reset_color << std::endl;
+}
+
+// Obsługa sygnału SIGUSR2 - Natychmiastowe zamknięcie
+void handle_sigusr2_signal(int signo) {
+    std::cout << warning << "Client " << client_pid << " received request to leave immediately." << reset_color << std::endl;
+
+    sem_lock(semaphore);
+
+    // Usunięcie klienta z listy klientów w sklepie
+    for (int i = 0; i < MAX_CLIENTS; ++i) {
+        if (state->clients[i] == client_pid) {
+            state->clients[i] = -1;
+            break;
+        }
+    }
+
+    sem_unlock(semaphore);
+
+    // Zamknij i odlinkuj FIFO
+    cleanup_fifo();
+
+    std::cout << info_important << "Client " << client_pid << ": Left supermarket due to request." << reset_color << std::endl;
+    exit(0);
 }
 
 int main() {
@@ -96,6 +119,14 @@ int main() {
     }
     // Sygnał SIGINT
     sig = signal(SIGINT, handle_sigint_signal);
+    if (sig == SIG_ERR) {
+        std::cout << fatal << "Client " << client_pid << ": Unable to set up properly." << reset_color << std::endl;
+        perror("signal");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
+    // Sygnał SIGUSR2 - Zamknięcie programu
+    sig = signal(SIGUSR2, handle_sigusr2_signal);
     if (sig == SIG_ERR) {
         std::cout << fatal << "Client " << client_pid << ": Unable to set up properly." << reset_color << std::endl;
         perror("signal");
@@ -246,13 +277,8 @@ int main() {
                 }
             }
             else if (bytes_read == -1) {
-                if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                    perror("read");
-                    std::cerr << "errno: " << errno << std::endl;
-                    break;
-                }
-            }
-            
+                // FIFO jest puste, sprawdzenie, czy klient nadal jest w kolejce
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
             bool in_queue = false;
 
             sem_lock(semaphore);
@@ -269,7 +295,16 @@ int main() {
             if (!in_queue) {
                 std::cout << error << "Client " << client_pid << ": Was removed from queue. Leaving supermarket." << reset_color << std::endl;
                 break;
+                    }
+                    
+                } else {
+                    perror("read");
+                    std::cerr << "errno: " << errno << std::endl;
+                    break;
+                }
             }
+            
+                sleep(1);
         }
     }
 
