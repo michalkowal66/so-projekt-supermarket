@@ -12,11 +12,14 @@ bool store_empty = false;
 bool shutting_down = false;
 
 // Obsługa sygnałów
+
+// Sygnał pożaru
 void handle_fire_signal(int signo) {
     std::cout << info_important << "Manager: Evacuation triggered!" << reset_color << std::endl;
 
     shutting_down = true;
 
+    // Zaczekaj aż kazdy klient opuści sklep
     bool clients_evacuated = false;
     while (!clients_evacuated) {
         clients_evacuated = true;
@@ -34,6 +37,7 @@ void handle_fire_signal(int signo) {
         sem_unlock(semaphore);
     }
 
+    // Zaczekaj aż kasjerzy opuszczą kasy
     bool cashiers_evacuated = false;
     while (!cashiers_evacuated) {
         cashiers_evacuated = true;
@@ -56,37 +60,52 @@ void handle_fire_signal(int signo) {
 }
 
 // Funkcje pomocnicze
+
+// Otwieranie wybranej kasy
 void open_checkout(int checkout_number) {
     sem_lock(semaphore);
     
     pid_t pid = fork();
+    // Utworzenie procesu kasjera przekazując mu odpowiedni numer kasy
     if (pid == 0) {
-        // Proces kasjera
         char checkout_arg[8];
         sprintf(checkout_arg, "%d", checkout_number);
         execl("./cashier", "./cashier", checkout_arg, nullptr);
         perror("execl");
+        std::cerr << "errno: " << errno << std::endl;
         exit(EXIT_FAILURE);
     } else if (pid > 0) {
+        // Ustawienie informacji o kasjerze i otwarcie kasy w pamięci dzielonej
         state->cashiers[checkout_number] = pid;
         state->checkout_statuses[checkout_number] = OPEN;
         std::cout << info_alt << "\nManager: Requested checkout #" << checkout_number + 1 << " to be opened (PID: " << pid << ")." << reset_color << std::endl;
     } else {
         perror("fork");
+        std::cerr << "errno: " << errno << std::endl;
     }
 
     sem_unlock(semaphore);
 }
 
+// Zamykanie wybranej kasy
 void close_checkout(int checkout_number) {
     sem_lock(semaphore);
 
+    // Pobranie aktualnego statusu kasy i PID kasjera
     CheckoutStatus checkout_status = state->checkout_statuses[checkout_number];
     pid_t pid = state->cashiers[checkout_number];
 
     if (checkout_status == OPEN) {
-        kill(pid, SIGUSR2); // Sygnał zamknięcia kasy
-        std::cout << info_alt << "\nManager: Requested checkout #" << checkout_number + 1 << " to be closed (PID: " << pid << ")." << reset_color << std::endl;
+        int sys_f_res;
+        // Wysłanie sygnału zamknięcia kasy
+        sys_f_res = kill(pid, SIGUSR2); 
+        if (sys_f_res == -1) {
+            perror("kill");
+            std::cerr << "errno: " << errno << std::endl;
+        }
+        else {
+            std::cout << info_alt << "\nManager: Requested checkout #" << checkout_number + 1 << " to be closed (PID: " << pid << ")." << reset_color << std::endl;
+        } 
     }    
 
     sem_unlock(semaphore);
@@ -96,7 +115,9 @@ void close_checkout(int checkout_number) {
 void* wait_children(void *arg) {
     while (!shutting_down) {
         int status;
-        pid_t pid = waitpid(-1, &status, WNOHANG); // Sprawdzaj bez blokowania
+
+        // Zastosowanie oczekiwania bez blokowania
+        pid_t pid = waitpid(-1, &status, WNOHANG); 
         if (pid > 0) {
             std::cout << info_alt << "Manager: Cashier process (" << pid << ") finished." << reset_color << std::endl;
         } else {
@@ -104,14 +125,17 @@ void* wait_children(void *arg) {
         }
     }
 
-    // Po zatrzymaniu programu upewnij się, że wszystkie procesy są oczyszczone
+    // Upewnienie się, że po zatrzymaniu programu wszystkie procesy potomne są oczyszczone
     while (true) {
         int status;
-        pid_t pid = waitpid(-1, &status, 0); // Blokujące oczekiwanie
+
+        // Zastosowanie blokującego oczekiwania
+        pid_t pid = waitpid(-1, &status, 0); 
         if (pid > 0) {
             std::cout << info_alt << "Manager: Cashier process (" << pid << ") finished after shutting down decision." << reset_color << std::endl;
         } else {
-            break; // Brak więcej procesów potomnych
+            // Brak więcej procesów potomnych
+            break; 
         }
     }
 
@@ -119,22 +143,41 @@ void* wait_children(void *arg) {
 }
 
 int main() {
-    signal(SIGUSR1, handle_fire_signal);
+    // Rejestracja funkcji obsługujących sygnały
+    // Sygnał pożaru
+    sighandler_t sig;
+    sig = signal(SIGUSR1, handle_fire_signal);
+    if (sig == SIG_ERR) {
+        perror("signal");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
 
     std::cout << info << "Manager: Preparing the store to open." << reset_color << std::endl;
 
     // Inicjalizacja pamięci współdzielonej i semaforów
     initialize_shared_key_file(SHARED_KEY_FILE);
     key_t key = ftok(SHARED_KEY_FILE, 65);
+    if (key == -1) {
+        perror("ftok");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
 
     state = initialize_shared_memory(key, shmid);
     semaphore = initialize_semaphore();
 
     std::cout << success_important << "Manager: Opening the store." << reset_color << std::endl;
 
-    // Wątek do oczyszczania procesów potomnych
+    int sys_f_res;
+    // Utworzenie wątku do oczyszczania procesów potomnych
     pthread_t wait_children_thread;
-    pthread_create(&wait_children_thread, NULL, wait_children, NULL);
+    sys_f_res = pthread_create(&wait_children_thread, NULL, wait_children, NULL);
+    if (sys_f_res != 0) {
+        perror("pthread_create");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
 
     // Startowe otwarcie minimalnej liczby kas
     for (int i = 0; i < MIN_CHECKOUTS; i++) {
@@ -142,24 +185,28 @@ int main() {
     }
 
     while (true) {
-        sleep(5); // Okresowa kontrola stanu sklepu
+        // Okresowa kontrola stanu sklepu
+        sleep(5); 
 
         sem_lock(semaphore);
 
         if (state->evacuation) {
+            // Przerwanie kontroli w przypadku ewakuacji
             sem_unlock(semaphore);
             break;
         }
 
-        // Liczba klientów w sklepie
+        // Odczytanie liczby klientów w sklepie
         int total_clients = 0;
         for (int i = 0; i < MAX_CLIENTS; ++i) {
             if (state->clients[i] != -1) {
                 ++total_clients;
             }
         }
+
         int open_checkouts = 0;
 
+        // Wydrukowanie podsumowania inspekcji: Ilość klientów, statusy kas i liczba klientów w kolejkach
         std::cout << info << "\nManager: Periodic inspection" << std::endl;
         std::cout << "  Clients in supermarket: " << total_clients << std::endl;
         for (int i = 0; i < MAX_CHECKOUTS; i++) {
@@ -179,7 +226,7 @@ int main() {
 
         bool took_action = false;
 
-        // Logika otwierania kas
+        // Sprawdzenie konieczności otwarcia nowej kasy
         if (open_checkouts < std::max((double)MIN_CHECKOUTS, ceil(total_clients * 1.0 / K_CLIENTS))) {
             for (int i = 0; i < MAX_CHECKOUTS; ++i) {
                 if (state->checkout_statuses[i] == CLOSED) {
@@ -191,12 +238,12 @@ int main() {
                 }
             }
         }
-        // Logika zamykania kas
+        // Sprawdzenie konieczności zamknięcia kasy
         else if (total_clients < K_CLIENTS * (open_checkouts - 1) && open_checkouts > MIN_CHECKOUTS) {
             int min_clients = MAX_QUEUE + 1;
             int checkout_to_close = -1;
 
-            // Znajdź kasę z najmniejszą liczbą klientów
+            // Znajdowanie kasy z najmniejszą liczbą klientów
             for (int i = 0; i < MAX_CHECKOUTS; ++i) {
                 if (state->checkout_statuses[i] == OPEN) {
                     int clients_in_queue = 0;
@@ -220,6 +267,7 @@ int main() {
             }
         }
 
+        // Zwolnienie dostępu do pamięci
         if (!took_action) {  
             sem_unlock(semaphore);
         }
@@ -230,9 +278,13 @@ int main() {
     }
     
     // Dołączanie wątku odpowiedzialnego za czyszczenie
-    pthread_join(wait_children_thread, NULL);
+    sys_f_res = pthread_join(wait_children_thread, NULL);
+    if (sys_f_res != 0) {
+        perror("pthread_join");
+        std::cerr << "errno: " << errno << std::endl;
+    }
 
-    // TODO: Podsumowanie ewakuacji
+    // Podsumowanie ewakuacji - Wypisanie ilości klientów w sklepie i ilości czynnych kas
     sem_lock(semaphore);
 
     int total_clients = 0;
@@ -262,6 +314,7 @@ int main() {
 
     sem_unlock(semaphore);
 
+    // Usunięcie utworzonych struktur
     cleanup_shared_memory(shmid, state);
     cleanup_semaphore(semaphore);
 
