@@ -9,17 +9,17 @@ sem_t* initialize_semaphore() {
         if (sem_close(sem) == -1) {
             perror("sem_close");
             std::cerr << "errno: " << errno << std::endl;
-            exit(EXIT_FAILURE);
+            return nullptr;
         }
         if (sem_unlink(SEM_NAME) == -1) {
             perror("sem_unlink");
             std::cerr << "errno: " << errno << std::endl;
-            exit(EXIT_FAILURE);
+            return nullptr;
         }
     } else if (errno != ENOENT) {
         perror("sem_open (check)");
         std::cerr << "errno: " << errno << std::endl;
-        exit(EXIT_FAILURE);
+        return nullptr;
     }
 
     // Utworzenie semafora
@@ -27,7 +27,7 @@ sem_t* initialize_semaphore() {
     if (sem == SEM_FAILED) {
         perror("sem_open (create)");
         std::cerr << "errno: " << errno << std::endl;
-        exit(EXIT_FAILURE);
+        return nullptr;
     }
 
     return sem;
@@ -91,14 +91,14 @@ SharedState* initialize_shared_memory(key_t key, int& shmid) {
     if (shmid == -1) {
         perror("shmget");
         std::cerr << "errno: " << errno << std::endl;
-        exit(EXIT_FAILURE);
+        return nullptr;
     }
 
     SharedState* state = (SharedState*)shmat(shmid, nullptr, 0);
     if (state == (void*)-1) {
         perror("shmat");
         std::cerr << "errno: " << errno << std::endl;
-        exit(EXIT_FAILURE);
+        return nullptr;
     }
 
     // Inicjalizacja stanu początkowego
