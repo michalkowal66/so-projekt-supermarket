@@ -160,13 +160,27 @@ int main() {
     initialize_shared_key_file(SHARED_KEY_FILE);
     key_t key = ftok(SHARED_KEY_FILE, 65);
     if (key == -1) {
+        std::cout << fatal << "Manager: Unable to open the store." << reset_color << std::endl;
         perror("ftok");
         std::cerr << "errno: " << errno << std::endl;
+        delete_file(SHARED_KEY_FILE);
         return EXIT_FAILURE;
     }
 
     state = initialize_shared_memory(key, shmid);
+    if (state == nullptr) {
+        std::cout << fatal << "Manager: Unable to open the store." << reset_color << std::endl;
+        delete_file(SHARED_KEY_FILE);
+        return EXIT_FAILURE;
+    }
+
     semaphore = initialize_semaphore();
+    if (semaphore == nullptr) {
+        std::cout << fatal << "Manager: Unable to open the store." << reset_color << std::endl;
+        cleanup_shared_memory(shmid, state);
+        delete_file(SHARED_KEY_FILE);
+        return EXIT_FAILURE;
+    }
 
     std::cout << success_important << "Manager: Opening the store." << reset_color << std::endl;
 
@@ -177,6 +191,9 @@ int main() {
     if (sys_f_res != 0) {
         perror("pthread_create");
         std::cerr << "errno: " << errno << std::endl;
+        cleanup_shared_memory(shmid, state);
+        cleanup_semaphore(semaphore);
+        delete_file(SHARED_KEY_FILE);
         return EXIT_FAILURE;
     }
 
@@ -318,6 +335,7 @@ int main() {
     // Usunięcie utworzonych struktur
     cleanup_shared_memory(shmid, state);
     cleanup_semaphore(semaphore);
+    delete_file(SHARED_KEY_FILE);
 
     return 0;
 }
