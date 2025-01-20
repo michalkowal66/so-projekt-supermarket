@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (checkout_number < 0 || checkout_number >= MAX_CHECKOUTS) {
-            std::cerr << error << "Cashier: Checkout number must lie within range: (0, " << MAX_CHECKOUTS - 1 << ")." << reset_color << std::endl;
+            std::cout << error << "Cashier: Checkout number must lie within range: (0, " << MAX_CHECKOUTS - 1 << ")." << reset_color << std::endl;
             return EXIT_FAILURE;
         }
     }
@@ -65,12 +65,13 @@ int main(int argc, char* argv[]) {
 
     state = get_shared_memory();
     if (state == nullptr) {
-        std::cerr << fatal << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): The store is unavailable." << reset_color << std::endl;
+        std::cout << fatal << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): The store is unavailable." << reset_color << std::endl;
         return EXIT_FAILURE;
     }
     
     semaphore = sem_open(SEM_NAME, 0);
     if (semaphore == SEM_FAILED) {
+        std::cout << fatal << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): The store is unavailable." << reset_color << std::endl;
         perror("sem_open");
         std::cerr << "errno: " << errno << std::endl;
         return EXIT_FAILURE;
@@ -81,6 +82,7 @@ int main(int argc, char* argv[]) {
     sighandler_t sig;
     sig = signal(SIGUSR1, handle_fire_signal);
     if (sig == SIG_ERR) {
+        std::cout << fatal << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Unable to set up properly." << reset_color << std::endl;
         perror("signal");
         std::cerr << "errno: " << errno << std::endl;
         return EXIT_FAILURE;
@@ -88,6 +90,7 @@ int main(int argc, char* argv[]) {
     // Sygnał zamknięcia kasy
     sig = signal(SIGUSR2, handle_closing_signal);
     if (sig == SIG_ERR) {
+        std::cout << fatal << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Unable to set up properly." << reset_color << std::endl;
         perror("signal");
         std::cerr << "errno: " << errno << std::endl;
         return EXIT_FAILURE;
