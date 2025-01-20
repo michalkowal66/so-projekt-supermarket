@@ -1,15 +1,20 @@
 #include "shared.h"
 #include "ccol.h"
+#include <errno.h>
 
+// PID kasjera, numer kasy, semafor, struktura pamięci dzielonej
 pid_t cashier_pid;
 int checkout_number;
 sem_t* semaphore = nullptr;
 SharedState* state = nullptr;
 
 // Obsługa sygnałów
+
+// Sygnał pożaru
 void handle_fire_signal(int signo) {
     sem_lock(semaphore);
 
+    // Zamknij kasę, usuń klietnów z kolejki, usuń się z listy kasjerów
     state->checkout_statuses[checkout_number] = CLOSED;
     for (int i = 0; i < MAX_QUEUE; i++) 
         state->queues[checkout_number][i] = -1;
@@ -23,25 +28,40 @@ void handle_fire_signal(int signo) {
     exit(0);
 }
 
+// Sygnał zamknięcia kasy
 void handle_closing_signal(int signo) {
     sem_lock(semaphore);
 
+    // Ustaw odpowiedni status kasy
     if (state->checkout_statuses[checkout_number] != CLOSING)
         state->checkout_statuses[checkout_number] = CLOSING;
 
-    sem_unlock(semaphore);
-    
     std::cout << info_alt << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Closing after serving remaining clients." << reset_color << std::endl;
+    
+    sem_unlock(semaphore);
 }
 
 int main(int argc, char* argv[]) {
+    // Walidacja argumentu uruchomienia
     if (argc != 2) {
         std::cerr << error << "Usage: cashier <checkout_number>" << reset_color << std::endl;
         return EXIT_FAILURE;
     }
+    else {
+        try {
+            checkout_number = std::stoi(argv[1]);
+        } catch (const std::exception& e) {
+            std::cout << warning << "Cashier: Checkout number parsing error." << reset_color << std::endl << std::endl;
+        }
 
+        if (checkout_number < 0 || checkout_number >= MAX_CHECKOUTS) {
+            std::cerr << error << "Cashier: Checkout number must lie within range: (0, " << MAX_CHECKOUTS - 1 << ")." << reset_color << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    // Inicjalizacja zmiennych i pamięci dzielonej
     cashier_pid = getpid();
-    checkout_number = std::stoi(argv[1]);
 
     state = get_shared_memory();
     if (state == nullptr) {
@@ -50,9 +70,28 @@ int main(int argc, char* argv[]) {
     }
     
     semaphore = sem_open(SEM_NAME, 0);
+    if (semaphore == SEM_FAILED) {
+        perror("sem_open");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
 
-    signal(SIGUSR1, handle_fire_signal);
-    signal(SIGUSR2, handle_closing_signal);
+    // Rejestracja funkcji obsługujących sygnały
+    // Sygnał pożaru
+    sighandler_t sig;
+    sig = signal(SIGUSR1, handle_fire_signal);
+    if (sig == SIG_ERR) {
+        perror("signal");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
+    // Sygnał zamknięcia kasy
+    sig = signal(SIGUSR2, handle_closing_signal);
+    if (sig == SIG_ERR) {
+        perror("signal");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
 
     std::cout << success << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Opened checkout " << checkout_number + 1 << reset_color << std::endl;
 
@@ -71,15 +110,33 @@ int main(int argc, char* argv[]) {
         sem_unlock(semaphore);
 
         if (client_pid != -1) {
-            sleep(8); // Symulacja obsługi
+            // Symulacja obsługi
+            sleep(8); 
+
+            bool client_served_properly = true;
 
             // Powiadomienie klienta o zakończeniu obsługi
             char client_fifo[32];
             sprintf(client_fifo, "/tmp/client_%d", client_pid);
             int client_fd = open(client_fifo, O_WRONLY);
             if (client_fd != -1) {
-                write(client_fd, "DONE", 4);
-                close(client_fd);
+                int res;
+                res = write(client_fd, "DONE", 4);
+                if (res == -1) {
+                    perror("write");
+                    std::cerr << "errno: " << errno << std::endl;
+                    client_served_properly = false;
+                }
+                res = close(client_fd);
+                if (res == -1) {
+                    perror("close");
+                    std::cerr << "errno: " << errno << std::endl;
+                }
+            }
+            else {
+                perror("open");
+                std::cerr << "errno: " << errno << std::endl;
+                client_served_properly = false;
             }
 
             // Przesunięcie kolejnych klientów w kolejce
@@ -90,7 +147,14 @@ int main(int argc, char* argv[]) {
             }
             state->queues[checkout_number][MAX_QUEUE - 1] = -1;
             
-            std::cout << success << "\nCashier " << checkout_number + 1 << " (" << cashier_pid << "): Served client " << client_pid << "." << reset_color << std::endl;
+            std::cout << success << "\nCashier " << checkout_number + 1 << " (" << cashier_pid << "): ";
+            if (client_served_properly) {
+                std::cout << "Served client " << client_pid << ".";
+            }
+            else {
+                std::cout << warning << "Wasn't able to serve client " << client_pid << ". Skipping to the next client.";
+            }
+            std::cout << reset_color << std::endl;
             
             sem_unlock(semaphore);
         } else {
@@ -109,13 +173,14 @@ int main(int argc, char* argv[]) {
                     break;
                 }
             }
+            // Zamknięcie kasy oczekującej na zamknięcie przy braku klientów w kolejce
             if (queue_empty) {
                 state->checkout_statuses[checkout_number] = CLOSED;
                 state->cashiers[checkout_number] = -1;
 
-                sem_unlock(semaphore);
-
                 std::cout << info_alt << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Closed checkout " << checkout_number + 1 << reset_color << std::endl;
+
+                sem_unlock(semaphore);
                 break;
             }
         }
@@ -123,8 +188,10 @@ int main(int argc, char* argv[]) {
         sem_unlock(semaphore);
     }
 
+    // Odłączenie segmentu pamięci dzielonej
     if (shmdt(state) == -1) {
         perror("shmdt");
+        std::cerr << "shmdt: " << errno << std::endl;
     }
 
     return 0;
