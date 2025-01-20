@@ -17,6 +17,25 @@ int fifo_fd = -1;
 char fifo_name[32];
 int fifo_linked = -1;
 
+// Próba zamknięcia i odlinkowania FIFO
+void cleanup_fifo() {
+    int sys_f_res;
+    if (fifo_fd != -1) {
+        sys_f_res = close(fifo_fd);
+        if (sys_f_res == -1) {
+            perror("close");
+            std::cerr << "errno: " << errno << std::endl;
+        }
+    }
+    if (fifo_linked != -1) {
+        sys_f_res = unlink(fifo_name);
+        if (sys_f_res == -1) {
+            perror("unlink");
+            std::cerr << "errno: " << errno << std::endl;
+        }
+    }
+}
+
 // Obsługa sygnałów
 
 // Sygnał pożaru
@@ -33,22 +52,8 @@ void handle_fire_signal(int signo) {
 
     sem_unlock(semaphore);
 
-    int sys_f_res;
     // Zamknij i odlinkuj FIFO
-    if (fifo_fd != -1) {
-        sys_f_res = close(fifo_fd);
-        if (sys_f_res == -1) {
-            perror("close");
-            std::cerr << "errno: " << errno << std::endl;
-        }
-    }
-    if (fifo_linked != -1) {
-        sys_f_res = unlink(fifo_name);
-        if (sys_f_res == -1) {
-            perror("unlink");
-            std::cerr << "errno: " << errno << std::endl;
-        }
-    }
+    cleanup_fifo();
 
     std::cout << info_important << "Client " << client_pid << ": Evacuating supermarket!" << reset_color << std::endl;
     exit(0);
@@ -115,6 +120,7 @@ int main() {
     // Zakończenie pracy programu w przypadku trwającej ewakuacji
     if (evacuation) {
         std::cerr << error << "Client " << client_pid << ": Store is being evacuated, cannot enter." << reset_color << std::endl;
+        cleanup_fifo();
         return EXIT_FAILURE;
     }
 
@@ -135,6 +141,7 @@ int main() {
     // Zakończenie pracy programu w przypadku nieudanej próby wejścia do sklepu
     if (!added) {
         std::cerr << error << "Client " << client_pid << ": Could not enter the supermarket." << reset_color << std::endl;
+        cleanup_fifo();
         return EXIT_FAILURE;
     }
 
@@ -212,14 +219,7 @@ int main() {
         sem_unlock(semaphore);
 
         // Odlinkowanie FIFO
-        if (fifo_linked != -1) {
-            int sys_f_res;
-            sys_f_res = unlink(fifo_name);
-            if (sys_f_res == -1) {
-                perror("unlink");
-                std::cerr << "errno: " << errno << std::endl;
-            }
-        }
+        cleanup_fifo();
 
         return EXIT_FAILURE;
     }
@@ -282,22 +282,8 @@ int main() {
 
     sem_unlock(semaphore);
 
-    int sys_f_res;
     // Zamknij i odlinkuj FIFO
-    if (fifo_fd != -1) {
-        sys_f_res = close(fifo_fd);
-        if (sys_f_res == -1) {
-            perror("close");
-            std::cerr << "errno: " << errno << std::endl;
-        }
-    }
-    if (fifo_linked != -1) {
-        sys_f_res = unlink(fifo_name);
-        if (sys_f_res == -1) {
-            perror("unlink");
-            std::cerr << "errno: " << errno << std::endl;
-        }
-    }
+    cleanup_fifo();
 
     return 0;
 }
