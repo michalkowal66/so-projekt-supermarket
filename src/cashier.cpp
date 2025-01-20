@@ -123,15 +123,20 @@ int main(int argc, char* argv[]) {
             sprintf(client_fifo, "/tmp/client_%d", client_pid);
             int client_fd = open(client_fifo, O_WRONLY);
             if (client_fd != -1) {
-                int res;
-                res = write(client_fd, "DONE", 4);
-                if (res == -1) {
+                int sys_f_res;
+                sys_f_res = write(client_fd, "DONE", 4);
+                if (sys_f_res == -1) {
                     perror("write");
                     std::cerr << "errno: " << errno << std::endl;
+                    sys_f_res = kill(client_pid, SIGUSR2);
+                    if (sys_f_res == -1) {
+                        perror("kill");
+                        std::cerr << "errno: " << errno << std::endl;
+                    }            
                     client_served_properly = false;
                 }
-                res = close(client_fd);
-                if (res == -1) {
+                sys_f_res = close(client_fd);
+                if (sys_f_res == -1) {
                     perror("close");
                     std::cerr << "errno: " << errno << std::endl;
                 }
@@ -139,6 +144,11 @@ int main(int argc, char* argv[]) {
             else {
                 perror("open");
                 std::cerr << "errno: " << errno << std::endl;
+                int sys_f_res = kill(client_pid, SIGUSR2);
+                if (sys_f_res == -1) {
+                    perror("kill");
+                    std::cerr << "errno: " << errno << std::endl;
+                }           
                 client_served_properly = false;
             }
 
