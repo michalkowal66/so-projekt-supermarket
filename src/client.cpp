@@ -72,12 +72,13 @@ int main() {
 
     state = get_shared_memory();
     if (state == nullptr) {
-        std::cerr << fatal << "Client " << client_pid << ": The store is unavailable." << reset_color << std::endl;
+        std::cout << fatal << "Client " << client_pid << ": The store is unavailable." << reset_color << std::endl;
         return EXIT_FAILURE;
     }
 
     semaphore = sem_open(SEM_NAME, 0);
     if (semaphore == SEM_FAILED) {
+        std::cout << fatal << "Client " << client_pid << ": The store is unavailable." << reset_color << std::endl;
         perror("sem_open");
         std::cerr << "errno: " << errno << std::endl;
         return EXIT_FAILURE;
@@ -88,6 +89,7 @@ int main() {
     sighandler_t sig;
     sig = signal(SIGUSR1, handle_fire_signal);
     if (sig == SIG_ERR) {
+        std::cout << fatal << "Client " << client_pid << ": Unable to set up properly." << reset_color << std::endl;
         perror("signal");
         std::cerr << "errno: " << errno << std::endl;
         return EXIT_FAILURE;
@@ -95,6 +97,7 @@ int main() {
     // Sygnał SIGINT
     sig = signal(SIGINT, handle_sigint_signal);
     if (sig == SIG_ERR) {
+        std::cout << fatal << "Client " << client_pid << ": Unable to set up properly." << reset_color << std::endl;
         perror("signal");
         std::cerr << "errno: " << errno << std::endl;
         return EXIT_FAILURE;
@@ -103,6 +106,7 @@ int main() {
     // Utworzenie FIFO do komunikacji z kasjerem
     fifo_linked = mkfifo(fifo_name, 0666);
     if (fifo_linked == -1) {
+        std::cout << fatal << "Client " << client_pid << ": Unable to set up properly." << reset_color << std::endl;
         perror("mkfifo");
         std::cerr << "errno: " << errno << std::endl;
         return EXIT_FAILURE;
@@ -119,7 +123,7 @@ int main() {
 
     // Zakończenie pracy programu w przypadku trwającej ewakuacji
     if (evacuation) {
-        std::cerr << error << "Client " << client_pid << ": Store is being evacuated, cannot enter." << reset_color << std::endl;
+        std::cout << error << "Client " << client_pid << ": Store is being evacuated, cannot enter." << reset_color << std::endl;
         cleanup_fifo();
         return EXIT_FAILURE;
     }
@@ -140,7 +144,7 @@ int main() {
 
     // Zakończenie pracy programu w przypadku nieudanej próby wejścia do sklepu
     if (!added) {
-        std::cerr << error << "Client " << client_pid << ": Could not enter the supermarket." << reset_color << std::endl;
+        std::cout << error << "Client " << client_pid << ": Could not enter the supermarket." << reset_color << std::endl;
         cleanup_fifo();
         return EXIT_FAILURE;
     }
@@ -242,30 +246,29 @@ int main() {
                 }
             }
             else if (bytes_read == -1) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    bool in_queue = false;
-
-                    sem_lock(semaphore);
-
-                    for (int i = 0; i < MAX_QUEUE; i++) {
-                        if (state->queues[selected_queue][i] == client_pid) {
-                            in_queue = true;
-                            break;
-                        }
-                    }
-
-                    sem_unlock(semaphore);
-
-                    if (!in_queue) {
-                        std::cout << error << "Client " << client_pid << ": Was removed from queue. Leaving supermarket." << reset_color << std::endl;
-                        break;
-                    }
-                    
-                } else {
+                if (errno != EAGAIN && errno != EWOULDBLOCK) {
                     perror("read");
                     std::cerr << "errno: " << errno << std::endl;
                     break;
                 }
+            }
+            
+            bool in_queue = false;
+
+            sem_lock(semaphore);
+
+            for (int i = 0; i < MAX_QUEUE; i++) {
+                if (state->queues[selected_queue][i] == client_pid) {
+                    in_queue = true;
+                    break;
+                }
+            }
+
+            sem_unlock(semaphore);
+
+            if (!in_queue) {
+                std::cout << error << "Client " << client_pid << ": Was removed from queue. Leaving supermarket." << reset_color << std::endl;
+                break;
             }
         }
     }
