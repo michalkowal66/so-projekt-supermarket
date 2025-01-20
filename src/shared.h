@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iostream>
 #include <queue>
+#include <errno.h>
 
 #define SHARED_KEY_FILE "/tmp/supermarket_key"
 #define SEM_NAME "/supermarket_sem"

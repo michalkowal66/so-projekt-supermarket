@@ -2,26 +2,31 @@
 
 // Inicjalizacja semafora
 sem_t* initialize_semaphore() {
-    // Sprawdź, czy semafor istnieje i usuń go, jeśli tak
-    sem_t* sem = sem_open(SEM_NAME, 0); // Otwórz bez O_CREAT by sprawdzić istnienie semafora
+    // Sprawdzenie, czy semafor istnieje i usunięcie go, jeśli tak
+    // Otwarcie bez O_CREAT by sprawdzić istnienie semafora
+    sem_t* sem = sem_open(SEM_NAME, 0); 
     if (sem != SEM_FAILED) {
         if (sem_close(sem) == -1) {
             perror("sem_close");
+            std::cerr << "errno: " << errno << std::endl;
             exit(EXIT_FAILURE);
         }
         if (sem_unlink(SEM_NAME) == -1) {
             perror("sem_unlink");
+            std::cerr << "errno: " << errno << std::endl;
             exit(EXIT_FAILURE);
         }
     } else if (errno != ENOENT) {
         perror("sem_open (check)");
+        std::cerr << "errno: " << errno << std::endl;
         exit(EXIT_FAILURE);
     }
 
-    // Utwórz semafor
+    // Utworzenie semafora
     sem = sem_open(SEM_NAME, O_CREAT, 0666, 1);
     if (sem == SEM_FAILED) {
         perror("sem_open (create)");
+        std::cerr << "errno: " << errno << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -32,35 +37,51 @@ sem_t* initialize_semaphore() {
 void cleanup_semaphore(sem_t* semaphore) {
     if (sem_close(semaphore) != 0) {
         perror("sem_close");
+        std::cerr << "errno: " << errno << std::endl;
+        exit(EXIT_FAILURE);
     }
     if (sem_unlink(SEM_NAME) != 0) {
         perror("sem_unlink");
-    }
-}
-
-// Funkcje semaforów
-void sem_lock(sem_t* semaphore) {
-    if (sem_wait(semaphore) != 0) {
-        perror("sem_wait");
+        std::cerr << "errno: " << errno << std::endl;
         exit(EXIT_FAILURE);
     }
 }
 
+// Funkcje semaforów
+
+// Wykonanie operacji WAIT na semaforze
+void sem_lock(sem_t* semaphore) {
+    if (sem_wait(semaphore) != 0) {
+        perror("sem_wait");
+        std::cerr << "errno: " << errno << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
+
+// Wykonanie operacji POST na semaforze
 void sem_unlock(sem_t* semaphore) {
     if (sem_post(semaphore) != 0) {
         perror("sem_post");
+        std::cerr << "errno: " << errno << std::endl;
         exit(EXIT_FAILURE);
     }
 }
 
 // Inicjalizacja pliku klucza dzielonego
 int initialize_shared_key_file(const char* path) {
-    int fd = open(path, O_CREAT | O_RDWR, 0666);
+    int fd = open(path, O_CREAT | O_RDWR, 0644);
     if (fd == -1) {
         perror("open");
+        std::cerr << "errno: " << errno << std::endl;
         exit(EXIT_FAILURE);
     }
-    close(fd);
+
+    if (close(fd) == -1) {
+        perror("close");
+        std::cerr << "errno: " << errno << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
     return 0;
 }
 
@@ -69,16 +90,19 @@ SharedState* initialize_shared_memory(key_t key, int& shmid) {
     shmid = shmget(key, sizeof(SharedState), IPC_CREAT | 0666);
     if (shmid == -1) {
         perror("shmget");
+        std::cerr << "errno: " << errno << std::endl;
         exit(EXIT_FAILURE);
     }
 
     SharedState* state = (SharedState*)shmat(shmid, nullptr, 0);
     if (state == (void*)-1) {
         perror("shmat");
+        std::cerr << "errno: " << errno << std::endl;
         exit(EXIT_FAILURE);
     }
 
     // Inicjalizacja stanu początkowego
+
     memset(state->checkout_statuses, CLOSED, sizeof(state->checkout_statuses));
     memset(state->cashiers, -1, sizeof(state->cashiers));
     memset(state->clients, -1, sizeof(state->clients));
@@ -100,15 +124,24 @@ SharedState* initialize_shared_memory(key_t key, int& shmid) {
 SharedState* get_shared_memory() {
     key_t key = ftok(SHARED_KEY_FILE, 65);
     if (key == -1) {
+        perror("ftok");
+        std::cerr << "errno: " << errno << std::endl;
         return nullptr;
     }
 
     int shmid = shmget(key, sizeof(SharedState), 0666);
     if (shmid == -1) {
+        perror("shmget");
+        std::cerr << "errno: " << errno << std::endl;
         return nullptr;
     }
 
     SharedState *state = (SharedState*)shmat(shmid, nullptr, 0);
+    if (state == (void*)-1) {
+        perror("shmat");
+        std::cerr << "errno: " << errno << std::endl;
+        return nullptr;
+    }
 
     return state;
 }
@@ -117,13 +150,17 @@ SharedState* get_shared_memory() {
 void cleanup_shared_memory(int shmid, SharedState* state) {
     if (shmdt(state) == -1) {
         perror("shmdt");
+        std::cerr << "errno: " << errno << std::endl;
     }
     if (shmctl(shmid, IPC_RMID, nullptr) == -1) {
         perror("shmctl");
+        std::cerr << "errno: " << errno << std::endl;
     }
 }
 
 // Funkcje pomocnicze
+
+// Przekształcenie statusu kasy na łańcuch znaków
 const char* checkout_status_to_string(CheckoutStatus status) {
     switch (status) {
         case 0:
