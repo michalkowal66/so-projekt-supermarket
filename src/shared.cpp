@@ -158,6 +158,25 @@ void cleanup_shared_memory(int shmid, SharedState* state) {
     }
 }
 
+// Usuwanie pliku klucza dzielonego
+int delete_file(const char* path) {
+    // Sprawdzenie, czy plik istnieje
+    if (access(path, F_OK) == -1) {
+        perror("access");
+        std::cerr << "errno: " << errno << std::endl;
+        return -1;
+    }
+
+    // Próba usunięcia pliku
+    if (unlink(path) == -1) {
+        perror("unlink");
+        std::cerr << "errno: " << errno << std::endl;
+        return -1;
+    }
+
+    return 0;
+}
+
 // Funkcje pomocnicze
 
 // Przekształcenie statusu kasy na łańcuch znaków

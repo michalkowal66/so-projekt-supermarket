@@ -40,6 +40,7 @@ void sem_unlock(sem_t* semaphore);
 int initialize_shared_key_file(const char* path);
 SharedState* initialize_shared_memory(key_t key, int& shmid);
 void cleanup_shared_memory(int shmid, SharedState* state);
+int delete_file(const char* path);
 SharedState* get_shared_memory();
 const char* checkout_status_to_string(CheckoutStatus status);
 
