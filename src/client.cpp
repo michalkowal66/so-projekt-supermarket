@@ -6,19 +6,23 @@
 #include <cstdlib>
 #include <ctime>
 
+// PID klienta, semafor, struktura pamięci dzielonej
+pid_t client_pid;
 sem_t* semaphore = nullptr;
 SharedState* state = nullptr;
-pid_t client_pid;
 
+// Deskrpytor FIFO klienta, ścieżka FIFO klienta, flaga wskazująca, czy FIFO jest utworzone
 int fifo_fd = -1;
 char fifo_name[32];
 int fifo_linked = -1;
 
-// Obsługa sygnału od strażaka
+// Obsługa sygnałów
+
+// Sygnał pożaru
 void handle_fire_signal(int signo) {
     sem_lock(semaphore);
 
-    // Usuń klienta z listy klientów w sklepie
+    // Usunięcie klienta z listy klientów w sklepie
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         if (state->clients[i] == client_pid) {
             state->clients[i] = -1;
@@ -28,24 +32,46 @@ void handle_fire_signal(int signo) {
 
     sem_unlock(semaphore);
 
-    if (fifo_fd != -1)
-        close(fifo_fd);
-    if (fifo_linked != -1)
-        unlink(fifo_name);
+    int sys_f_res;
+    // Zamknij i odlinkuj FIFO
+    if (fifo_fd != -1) {
+        sys_f_res = close(fifo_fd);
+        if (sys_f_res == -1) {
+            perror("close");
+            std::cerr << "errno: " << errno << std::endl;
+        }
+    }
+    if (fifo_linked != -1) {
+        sys_f_res = unlink(fifo_name);
+        if (sys_f_res == -1) {
+            perror("unlink");
+            std::cerr << "errno: " << errno << std::endl;
+        }
+    }
 
     std::cout << info_important << "Client " << client_pid << ": Evacuating supermarket!" << reset_color << std::endl;
     exit(0);
 }
 
+// Obsługa sygnału SIGINT
 void handle_sigint_signal(int signo) {
     std::cout << warning << "Client " << client_pid << " received SIGINT - ignoring signal." << reset_color << std::endl;
 }
 
 int main() {
+    // Inicjalizacja zmiennych i pamięci dzielonej
     client_pid = getpid();
+
     sprintf(fifo_name, "/tmp/client_%d", client_pid);
 
-    // Inicjalizacja
+    // Utworzenie FIFO do komunikacji z kasjerem
+    fifo_linked = mkfifo(fifo_name, 0666);
+    if (fifo_linked == -1) {
+        perror("mkfifo");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
+
     state = get_shared_memory();
     if (state == nullptr) {
         std::cerr << fatal << "Client " << client_pid << ": The store is unavailable." << reset_color << std::endl;
@@ -53,19 +79,39 @@ int main() {
     }
 
     semaphore = sem_open(SEM_NAME, 0);
+    if (semaphore == SEM_FAILED) {
+        perror("sem_open");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
 
-    signal(SIGUSR1, handle_fire_signal);
-    signal(SIGINT, handle_sigint_signal);
+    // Rejestracja funkcji obsługujących sygnały
+    // Sygnał pożaru
+    sighandler_t sig;
+    sig = signal(SIGUSR1, handle_fire_signal);
+    if (sig == SIG_ERR) {
+        perror("signal");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
+    // Sygnał SIGINT
+    sig = signal(SIGINT, handle_sigint_signal);
+    if (sig == SIG_ERR) {
+        perror("signal");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
 
     srand(time(nullptr) ^ client_pid);
 
-    // Dodanie klienta do listy klientów w sklepie
+    // Sprawdzenie statusu sklepu i próba dodania klienta do listy klientów
     sem_lock(semaphore);
 
     bool evacuation = state->evacuation;
 
     sem_unlock(semaphore);
 
+    // Zakończenie pracy programu w przypadku trwającej ewakuacji
     if (evacuation) {
         std::cerr << error << "Client " << client_pid << ": Store is being evacuated, cannot enter." << reset_color << std::endl;
         return EXIT_FAILURE;
@@ -73,6 +119,7 @@ int main() {
 
     sem_lock(semaphore);
 
+    // Próba dołączenia do listy klientów
     bool added = false;
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         if (state->clients[i] == -1) {
@@ -84,6 +131,7 @@ int main() {
 
     sem_unlock(semaphore);
 
+    // Zakończenie pracy programu w przypadku nieudanej próby wejścia do sklepu
     if (!added) {
         std::cerr << error << "Client " << client_pid << ": Could not enter the supermarket." << reset_color << std::endl;
         return EXIT_FAILURE;
@@ -91,24 +139,23 @@ int main() {
 
     std::cout << success << "Client " << client_pid << ": Entered the supermarket." << reset_color << std::endl;
     
-    // Utwórz FIFO do komunikacji z kasjerem
-    fifo_linked = mkfifo(fifo_name, 0666);
-
     // Symulacja zakupów
     int shopping_time = rand() % 8 + 3; // Zakupy trwają 3-10 sekund
     sleep(shopping_time);
     std::cout << info << "Client " << client_pid << ": Finished shopping in " << shopping_time << " seconds." << reset_color << std::endl;
 
-    // Próbuj ustawić się w kolejce
-    int attempts = 2; // Liczba prób ustawienia się w kolejce
+    // Próba ustawienia się w kolejce
+    // Liczba prób ustawienia się w kolejce
+    int attempts = 2; 
     bool queued = false;
+    int selected_queue;
 
     for (int attempt = 0; attempt < attempts; ++attempt) {
         sem_lock(semaphore);
 
-        // Znajdź najkrótszą otwartą kolejkę
+        // Znajdowanie najkrótszej kolejki
         int min_queue_length = MAX_QUEUE + 1;
-        int selected_queue = -1;
+        selected_queue = -1;
 
         for (int i = 0; i < MAX_CHECKOUTS; ++i) {
             if (state->checkout_statuses[i] == OPEN) {
@@ -126,8 +173,8 @@ int main() {
             }
         }
 
+        // Dodanie klienta do wybranej kolejki
         if (selected_queue != -1) {
-            // Dodanie klienta do wybranej kolejki
             for (int j = 0; j < MAX_QUEUE; ++j) {
                 if (state->queues[selected_queue][j] == -1) {
                     state->queues[selected_queue][j] = client_pid;
@@ -142,15 +189,18 @@ int main() {
 
         if (queued) break;
 
+        // Odczekanie losowego czasu przed kolejną próbą
         std::cout << warning << "Client " << client_pid << ": All queues are full. Retrying in a moment." << reset_color << std::endl;
-        sleep(rand() % 3 + 1); // Odczekaj losowy czas przed kolejną próbą
+        sleep(rand() % 3 + 1); 
     }
 
+    // Zakończenie pracy programu po wyczerpaniu prób ustawienia się w kolejce
     if (!queued) {
         std::cout << warning << "Client " << client_pid << ": Could not join any queue. Leaving without purchases." << reset_color << std::endl;
         
         sem_lock(semaphore);
 
+        // Usunięcie klienta z listy klientów w sklepie
         for (int i = 0; i < MAX_CLIENTS; ++i) {
             if (state->clients[i] == client_pid) {
                 state->clients[i] = -1;
@@ -160,27 +210,66 @@ int main() {
 
         sem_unlock(semaphore);
 
-        if (fifo_linked != -1)
-            unlink(fifo_name);
+        // Odlinkowanie FIFO
+        if (fifo_linked != -1) {
+            int sys_f_res;
+            sys_f_res = unlink(fifo_name);
+            if (sys_f_res == -1) {
+                perror("unlink");
+                std::cerr << "errno: " << errno << std::endl;
+            }
+        }
 
         return EXIT_FAILURE;
     }
 
-    // Czekaj na wiadomość od kasjera
-    int fifo_fd = open(fifo_name, O_RDONLY);
-    char buffer[16];
-    while (true) {
-        int bytes_read = read(fifo_fd, buffer, sizeof(buffer) - 1);
-        if (bytes_read > 0) {
-            buffer[bytes_read] = '\0';
-            if (strcmp(buffer, "DONE") == 0) {
-                std::cout << success_important << "Client " << client_pid << ": Finished checkout. Leaving supermarket." << reset_color << std::endl;
-                break;
+    // Oczekiwanie obsłużenie
+    int fifo_fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
+
+    if (fifo_fd == -1) {
+        perror("open");
+        std::cerr << "errno: " << errno << std::endl;
+    } else {
+        char buffer[16];
+        while (true) {
+            int bytes_read = read(fifo_fd, buffer, sizeof(buffer) - 1);
+            if (bytes_read > 0) {
+                buffer[bytes_read] = '\0';
+                if (strcmp(buffer, "DONE") == 0) {
+                    std::cout << success_important << "Client " << client_pid << ": Finished checkout. Leaving supermarket." << reset_color << std::endl;
+                    break;
+                }
+            }
+            else if (bytes_read == -1) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    bool in_queue = false;
+
+                    sem_lock(semaphore);
+
+                    for (int i = 0; i < MAX_QUEUE; i++) {
+                        if (state->queues[selected_queue][i] == client_pid) {
+                            in_queue = true;
+                            break;
+                        }
+                    }
+
+                    sem_unlock(semaphore);
+
+                    if (!in_queue) {
+                        std::cout << error << "Client " << client_pid << ": Was removed from queue. Leaving supermarket." << reset_color << std::endl;
+                        break;
+                    }
+                    
+                } else {
+                    perror("read");
+                    std::cerr << "errno: " << errno << std::endl;
+                    break;
+                }
             }
         }
     }
 
-    // Usuń klienta z listy klientów w sklepie
+    // Usunięcie klienta z listy klientów w sklepie po zakończeniu zakupów
     sem_lock(semaphore);
 
     for (int i = 0; i < MAX_CLIENTS; ++i) {
@@ -192,8 +281,22 @@ int main() {
 
     sem_unlock(semaphore);
 
-    close(fifo_fd);
-    unlink(fifo_name);
+    int sys_f_res;
+    // Zamknij i odlinkuj FIFO
+    if (fifo_fd != -1) {
+        sys_f_res = close(fifo_fd);
+        if (sys_f_res == -1) {
+            perror("close");
+            std::cerr << "errno: " << errno << std::endl;
+        }
+    }
+    if (fifo_linked != -1) {
+        sys_f_res = unlink(fifo_name);
+        if (sys_f_res == -1) {
+            perror("unlink");
+            std::cerr << "errno: " << errno << std::endl;
+        }
+    }
 
     return 0;
 }
