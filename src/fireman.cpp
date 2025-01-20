@@ -1,5 +1,6 @@
 #include "shared.h"
 #include "ccol.h"
+#include <errno.h>
 
 // Domyślna szansa na pożar
 int fire_chance = 20;

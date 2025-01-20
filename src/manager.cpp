@@ -4,6 +4,7 @@
 #include <map>
 #include <algorithm>
 #include <cmath>
+#include <errno.h>
 
 sem_t* semaphore = nullptr;
 SharedState* state = nullptr;

@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <cstdlib>
+#include <errno.h>
 
 #define MAX_CHILDREN_DEF 500
 #define MIN_CHILDREN_DEF 1

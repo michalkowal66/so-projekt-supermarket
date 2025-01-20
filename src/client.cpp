@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <ctime>
+#include <errno.h>
 
 // PID klienta, semafor, struktura pamięci dzielonej
 pid_t client_pid;
