@@ -65,14 +65,6 @@ int main() {
 
     sprintf(fifo_name, "/tmp/client_%d", client_pid);
 
-    // Utworzenie FIFO do komunikacji z kasjerem
-    fifo_linked = mkfifo(fifo_name, 0666);
-    if (fifo_linked == -1) {
-        perror("mkfifo");
-        std::cerr << "errno: " << errno << std::endl;
-        return EXIT_FAILURE;
-    }
-
     state = get_shared_memory();
     if (state == nullptr) {
         std::cerr << fatal << "Client " << client_pid << ": The store is unavailable." << reset_color << std::endl;
@@ -99,6 +91,14 @@ int main() {
     sig = signal(SIGINT, handle_sigint_signal);
     if (sig == SIG_ERR) {
         perror("signal");
+        std::cerr << "errno: " << errno << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    // Utworzenie FIFO do komunikacji z kasjerem
+    fifo_linked = mkfifo(fifo_name, 0666);
+    if (fifo_linked == -1) {
+        perror("mkfifo");
         std::cerr << "errno: " << errno << std::endl;
         return EXIT_FAILURE;
     }
