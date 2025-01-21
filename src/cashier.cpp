@@ -96,7 +96,13 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+    sem_lock(semaphore);
+    
+    state->checkout_statuses[checkout_number] = OPEN;
+
     std::cout << success << "Cashier " << checkout_number + 1 << " (" << cashier_pid << "): Opened checkout " << checkout_number + 1 << reset_color << std::endl;
+
+    sem_unlock(semaphore);
 
     while (true) {
         sem_lock(semaphore);

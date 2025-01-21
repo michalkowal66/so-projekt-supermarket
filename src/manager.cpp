@@ -78,7 +78,7 @@ void open_checkout(int checkout_number) {
     } else if (pid > 0) {
         // Ustawienie informacji o kasjerze i otwarcie kasy w pamięci dzielonej
         state->cashiers[checkout_number] = pid;
-        state->checkout_statuses[checkout_number] = OPEN;
+        state->checkout_statuses[checkout_number] = OPENING;
         std::cout << info_alt << "\nManager: Requested checkout #" << checkout_number + 1 << " to be opened (PID: " << pid << ")." << reset_color << std::endl;
     } else {
         perror("fork");
@@ -231,7 +231,7 @@ int main() {
             CheckoutStatus curr_checkout_status = (CheckoutStatus)(state->checkout_statuses[i]);
             std::cout << "    Checkout " << i + 1 << ": " << checkout_status_to_string(curr_checkout_status) << std::endl;
             if (curr_checkout_status != CLOSED) {
-                if (curr_checkout_status == OPEN) open_checkouts++;
+                if (curr_checkout_status == OPEN || curr_checkout_status == OPENING) open_checkouts++;
                 int queue_size = 0;
                 for (int j = 0; j < MAX_QUEUE; j++) {
                     if (state->queues[i][j] == -1) break;
