@@ -20,7 +20,7 @@
 #define MAX_QUEUE 10
 #define MAX_CLIENTS 300
 
-enum CheckoutStatus { CLOSED = 0, CLOSING = 1, OPEN = 2 };
+enum CheckoutStatus { CLOSED = 0, CLOSING = 1, OPEN = 2, OPENING = 3 };
 
 // Struktura stanu współdzielonego
 struct SharedState {

@@ -188,6 +188,8 @@ const char* checkout_status_to_string(CheckoutStatus status) {
             return "CLOSING";
         case 2:
             return "OPEN";
+        case 3:
+            return "OPENING";
         default:
             return "UNKNOWN";
     }
