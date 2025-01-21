@@ -9,6 +9,7 @@
                 "-g",
                 "${file}",
                 "${workspaceFolder}/src/shared.cpp",
+                "${workspaceFolder}/src/ccol.cpp",
                 "-o",
                 "${workspaceFolder}/bin/${fileBasenameNoExtension}"
             ],
