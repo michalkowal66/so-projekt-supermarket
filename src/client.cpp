@@ -259,10 +259,11 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    // Oczekiwanie obsłużenie
-    int fifo_fd = open(fifo_name, O_RDONLY | O_NONBLOCK);
+    // Oczekiwanie na obsłużenie
+    int fifo_fd = open(fifo_name, O_RDONLY);
 
     if (fifo_fd == -1) {
+        std::cout << error << "Client " << client_pid << ": Can't get answer from cashier. Leaving supermarket." << reset_color << std::endl;
         perror("open");
         std::cerr << "errno: " << errno << std::endl;
     } else {
@@ -277,31 +278,13 @@ int main() {
                 }
             }
             else if (bytes_read == -1) {
-                // FIFO jest puste, sprawdzenie, czy klient nadal jest w kolejce
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            bool in_queue = false;
-
-            sem_lock(semaphore);
-
-            for (int i = 0; i < MAX_QUEUE; i++) {
-                if (state->queues[selected_queue][i] == client_pid) {
-                    in_queue = true;
-                    break;
-                }
-            }
-
-            sem_unlock(semaphore);
-
-            if (!in_queue) {
-                std::cout << error << "Client " << client_pid << ": Was removed from queue. Leaving supermarket." << reset_color << std::endl;
-                break;
-                    }
-                    
-                } else {
                     perror("read");
                     std::cerr << "errno: " << errno << std::endl;
                     break;
                 }
+            else if (bytes_read == 0) {
+                std::cout << error << "Client " << client_pid << ": Communication closed. Leaving supermarket." << reset_color << std::endl;
+                break;
             }
             
                 sleep(1);
