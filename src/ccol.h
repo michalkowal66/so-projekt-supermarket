@@ -11,6 +11,7 @@ std::ostream& error(std::ostream& os);
 std::ostream& fatal(std::ostream& os);
 std::ostream& info(std::ostream& os);
 std::ostream& info_alt(std::ostream& os);
+std::ostream& info_alt_important(std::ostream& os);
 std::ostream& info_important(std::ostream& os);
 
 // Reset color

@@ -35,8 +35,13 @@ std::ostream& info_alt(std::ostream& os) {
     return os;
 }
 
+std::ostream& info_alt_important(std::ostream& os) {
+    os << "\033[4;35m"; // Underlined magenta text
+    return os;
+}
+
 std::ostream& info_important(std::ostream& os) {
-    os << "\033[4;36m"; // Bold cyan text
+    os << "\033[4;36m"; // Underlined cyan text
     return os;
 }
 
