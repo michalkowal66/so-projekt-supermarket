@@ -121,6 +121,33 @@ void* wait_children(void *arg) {
         pid_t pid = waitpid(-1, &status, WNOHANG); 
         if (pid > 0) {
             std::cout << info_alt << "Manager: Cashier process (" << pid << ") finished." << reset_color << std::endl;
+            // Sprawdzenie, czy kasjer, który zakończył proces z błędem nie był odpowiedzialny za kasę
+            if (WIFEXITED(status)) {
+                int ret_code = WEXITSTATUS(status);
+                if (ret_code != 0) {
+                    sem_lock(semaphore);
+                    std::cout << info_alt_important << "Manager: Cashier process (" << pid << ") exited with error (" << ret_code << ")." << reset_color << std::endl;
+
+                    bool active_cashier = false;
+                    int checkout_number = -1;
+                    for (int i = 0; i < MAX_CHECKOUTS; i++) {
+                        if (state->cashiers[i] == pid) {
+                            checkout_number = i;
+                            active_cashier = true;
+                            break;
+                        }
+                    }
+
+                    // Oczyszczenie kasy, której nie udało się otworzyć
+                    if (active_cashier && state->checkout_statuses[checkout_number] == OPENING) {
+                        state->cashiers[checkout_number] = -1;
+                        state->checkout_statuses[checkout_number] = CLOSED;
+                        std::cout << info_alt_important << "Manager: Closing improperly opened checkout by cashier " << checkout_number + 1 << " (" << pid << ")." << reset_color << std::endl;
+                    }
+
+                    sem_unlock(semaphore);
+                }
+            }
         } else {
             sleep(1);
         }
@@ -134,6 +161,33 @@ void* wait_children(void *arg) {
         pid_t pid = waitpid(-1, &status, 0); 
         if (pid > 0) {
             std::cout << info_alt << "Manager: Cashier process (" << pid << ") finished after shutting down decision." << reset_color << std::endl;
+            // Sprawdzenie, czy kasjer, który zakończył proces z błędem nie był odpowiedzialny za kasę
+            if (WIFEXITED(status)) {
+                int ret_code = WEXITSTATUS(status);
+                if (ret_code != 0) {
+                    sem_lock(semaphore);
+                    std::cout << info_alt_important << "Manager: Cashier process (" << pid << ") exited with error (" << ret_code << ")." << reset_color << std::endl;
+
+                    bool active_cashier = false;
+                    int checkout_number = -1;
+                    for (int i = 0; i < MAX_CHECKOUTS; i++) {
+                        if (state->cashiers[i] == pid) {
+                            checkout_number = i;
+                            active_cashier = true;
+                            break;
+                        }
+                    }
+
+                    // Oczyszczenie kasy, której nie udało się otworzyć
+                    if (active_cashier && state->checkout_statuses[checkout_number] == OPENING) {
+                        state->cashiers[checkout_number] = -1;
+                        state->checkout_statuses[checkout_number] = CLOSED;
+                        std::cout << info_alt_important << "Manager: Closing improperly opened checkout by cashier " << checkout_number + 1 << " (" << pid << ")." << reset_color << std::endl;
+                    }
+
+                    sem_unlock(semaphore);
+                }
+            }
         } else {
             // Brak więcej procesów potomnych
             break; 
