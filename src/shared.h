@@ -24,9 +24,9 @@ enum CheckoutStatus { CLOSED = 0, CLOSING = 1, OPEN = 2, OPENING = 3 };
 
 // Struktura stanu współdzielonego
 struct SharedState {
-    int manager;
-    int cashiers[MAX_CHECKOUTS];
-    CheckoutStatus checkout_statuses[MAX_CHECKOUTS]; // CLOSED, CLOSING, OPEN
+    int manager; // PID menedzera
+    int cashiers[MAX_CHECKOUTS]; // Lista kasjerów (-1 oznacza brak kasjera)
+    CheckoutStatus checkout_statuses[MAX_CHECKOUTS]; // CLOSED, CLOSING, OPEN, OPENING
     int queues[MAX_CHECKOUTS][MAX_QUEUE]; // Kolejki kas
     int clients[MAX_CLIENTS]; // Lista klientów w sklepie (-1 oznacza brak klienta)
     bool evacuation; // Flaga ewakuacji
